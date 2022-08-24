@@ -88,6 +88,7 @@ void DrawFlatCube(sf::RenderTarget& rt, const Cube& cube, float x, float y, floa
         rt.draw(line_horizontal);
         rt.draw(line_vertical);
         break;
+
     case Front:
     case Back:
         if (mouse.side == Back)
@@ -115,6 +116,7 @@ void DrawFlatCube(sf::RenderTarget& rt, const Cube& cube, float x, float y, floa
         line_vertical.setPosition(side_width+mouse.column*side_width/SIDE_LENGTH, 2*side_heigth);
         rt.draw(line_vertical);
         break;
+
     case Left:
     case Right:
         if (mouse.side == Right)
@@ -142,6 +144,7 @@ void DrawFlatCube(sf::RenderTarget& rt, const Cube& cube, float x, float y, floa
         line_horizontal.setPosition(side_width, 2*side_heigth+(SIDE_LENGTH-mouse.column-1)*side_heigth/SIDE_LENGTH);
         rt.draw(line_horizontal);
         break;
+
     default:
         break;
     }
@@ -229,7 +232,7 @@ void MovePitch(Cube& cube, Tile where, bool up)
             }
             if (where.column == 0)
                 Rotate(cube,Left,false);
-            if (where.column == 2)
+            if (where.column == SIDE_LENGTH-1)
                 Rotate(cube,Right,true);
         }
         else
@@ -244,10 +247,11 @@ void MovePitch(Cube& cube, Tile where, bool up)
             }
             if (where.column == 0)
                 Rotate(cube,Left,true);
-            if (where.column == 2)
+            if (where.column == SIDE_LENGTH-1)
                 Rotate(cube,Right,false);
         }
         break;
+
     case Right:
         where.column = SIDE_LENGTH-where.column-1;
         up = !up;
@@ -264,7 +268,7 @@ void MovePitch(Cube& cube, Tile where, bool up)
             }
             if (where.column == 0)
                 Rotate(cube,Back,false);
-            if (where.column == 2)
+            if (where.column == SIDE_LENGTH-1)
                 Rotate(cube,Front,true);
         }
         else
@@ -279,10 +283,11 @@ void MovePitch(Cube& cube, Tile where, bool up)
             }
             if (where.column == 0)
                 Rotate(cube,Back,true);
-            if (where.column == 2)
+            if (where.column == SIDE_LENGTH-1)
                 Rotate(cube,Front,false);
         }
         break;
+
     default:
         break;
     }
@@ -308,7 +313,7 @@ void MoveYaw(Cube& cube, Tile where, bool left)
             }
             if (where.row == 0)
                 Rotate(cube,Top,true);
-            if (where.row == 2)
+            if (where.row == SIDE_LENGTH-1)
                 Rotate(cube,Bottom,false);
         }
         else
@@ -323,10 +328,11 @@ void MoveYaw(Cube& cube, Tile where, bool left)
             }
             if (where.row == 0)
                 Rotate(cube,Top,false);
-            if (where.row == 2)
+            if (where.row == SIDE_LENGTH-1)
                 Rotate(cube,Bottom,true);
         }
         break;
+
     case Bottom:
         where.row = SIDE_LENGTH-where.row-1;
         left = !left;
@@ -343,7 +349,7 @@ void MoveYaw(Cube& cube, Tile where, bool left)
             }
             if (where.row == 0)
                 Rotate(cube,Back,true);
-            if (where.row == 2)
+            if (where.row == SIDE_LENGTH-1)
                 Rotate(cube,Front,false);
         }
         else
@@ -358,16 +364,68 @@ void MoveYaw(Cube& cube, Tile where, bool left)
             }
             if (where.row == 0)
                 Rotate(cube,Back,false);
-            if (where.row == 2)
+            if (where.row == SIDE_LENGTH-1)
                 Rotate(cube,Front,true);
         }
         break;
+
     default:
         break;
     }
 }
 
 #pragma GCC diagnostic pop
+
+void MoveRoll(Cube& cube, Tile where, bool clockwise)
+{
+    switch (where.side)
+    {
+    case Top:
+        where.side = Front;
+        where.row = 0;
+        where.column = 0;
+        MoveYaw(cube, where, clockwise);
+        break;
+
+    case Bottom:
+        where.side = Front;
+        where.row = SIDE_LENGTH-1;
+        where.column = 0;
+        MoveYaw(cube, where, !clockwise);
+        break;
+
+    case Left:
+        where.side = Top;
+        where.row = 0;
+        where.column = 0;
+        MovePitch(cube, where, !clockwise);
+        break;
+
+    case Right:
+        where.side = Top;
+        where.row = 0;
+        where.column = SIDE_LENGTH-1;
+        MovePitch(cube, where, clockwise);
+        break;
+
+    case Front:
+        where.side = Left;
+        where.row = 0;
+        where.column = SIDE_LENGTH-1;
+        MovePitch(cube, where, clockwise);
+        break;
+
+    case Back:
+        where.side = Left;
+        where.row = 0;
+        where.column = 0;
+        MovePitch(cube, where, !clockwise);
+        break;
+
+    default:
+        break;
+    }
+}
 
 void Shuffle(Cube& cube)
 {
@@ -443,8 +501,16 @@ int main()
             case sf::Event::KeyPressed:
                 switch (event.key.code)
                 {
+                case sf::Keyboard::Q:
+                    MoveRoll(cube, mouse, false);
+                    break;
+
                 case sf::Keyboard::W:
                     MovePitch(cube, mouse, true);
+                    break;
+
+                case sf::Keyboard::E:
+                    MoveRoll(cube, mouse, true);
                     break;
                     
                 case sf::Keyboard::A:
