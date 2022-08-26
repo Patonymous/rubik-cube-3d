@@ -3,8 +3,8 @@
 
 #include <array>
 
-#define WIND_WIDTH 800
-#define WIND_HEIGHT 600
+#define WIND_WIDTH 1200
+#define WIND_HEIGHT 900
 #define SIDE_LENGTH 3
 
 enum Sides {Top, Left, Front, Right, Back, Bottom, SideCount};

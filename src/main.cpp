@@ -4,6 +4,7 @@ const Tile Tile::invalid(SideCount, SIDE_LENGTH, SIDE_LENGTH);
 #include <iostream>
 
 #include "SFML_version.hpp"
+#include "RAYLIB_version.hpp"
 
 using namespace std;
 
@@ -303,7 +304,7 @@ int main()
     }
     Tile mouse = Tile::invalid;
 
-    SFML_IO(cube, mouse);
+    RAYLIB_IO(cube, mouse);
 
     return EXIT_SUCCESS;
 }

@@ -1,8 +1,6 @@
 #include "SFML_version.hpp"
 
-using namespace std;
-
-static const array<sf::Color,ColorCount> RGB = {sf::Color::White, sf::Color::Magenta, sf::Color::Green, sf::Color::Red, sf::Color::Blue, sf::Color::Yellow};
+static const std::array<sf::Color,ColorCount> RGB = {sf::Color::White, sf::Color::Magenta, sf::Color::Green, sf::Color::Red, sf::Color::Blue, sf::Color::Yellow};
 
 void DrawFlatSide(sf::RenderTarget& rt, const Side& side, float x, float y, float width, float height)
 {

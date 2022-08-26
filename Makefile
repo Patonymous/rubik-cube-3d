@@ -16,31 +16,49 @@ RELEASE_LFLAGS	:=
 
 # define library paths other than SFML
 LPATHS	:=
+DEBUG_LPATHS	:= 
+RELEASE_LPATHS	:= 
 
 # define linking mode
 LMODE	?= dynamic
-
-# define SFML stuff
-SFML_INCLUDE	:= "C:/External_libraries/CPP/SFML-2.5.1-source/include"
-EXT_LIB	:= "C:/External_libraries/CPP/SFML-2.5.1-source/extlibs/libs-mingw/x64"
-EXT_LPATHS	:= -lFLAC -lfreetype -lopenal32 -lvorbisenc -lvorbisfile -lvorbis -logg -lopengl32 -lgdi32 -lwinmm -lws2_32
 ifeq ($(LMODE),static)
 $(warning ---------------------------------- WARNING! ----------------------------------)
 $(warning If linker errors appear when static linking, 'make clean' first and then retry)
 $(warning ---------------------------------- WARNING! ----------------------------------)
-SFML_LIB	:= "C:/External_libraries/CPP/SFML-2.5.1-Mingw64-gcc11.2.0-llvm-msvcrt-static/lib"
-CFLAGS	+= -DSFML_STATIC
 LFLAGS	+= -static-libgcc -static-libstdc++
-DEBUG_LPATHS	:= -lsfml-network-s-d -lsfml-audio-s-d -lsfml-graphics-s-d -lsfml-window-s-d -lsfml-system-s-d
-RELEASE_LPATHS	:= -lsfml-network-s -lsfml-audio-s -lsfml-graphics-s -lsfml-window-s -lsfml-system-s
 else
-ifeq ($(LMODE),dynamic)
-SFML_LIB	:= "C:/External_libraries/CPP/SFML-2.5.1-Mingw64-gcc11.2.0-llvm-msvcrt-dynamic/lib"
-DEBUG_LPATHS	:= -lsfml-network-d -lsfml-audio-d -lsfml-graphics-d -lsfml-window-d -lsfml-system-d
-RELEASE_LPATHS	:= -lsfml-network -lsfml-audio -lsfml-graphics -lsfml-window -lsfml-system
-else
+ifneq ($(LMODE),dynamic)
 $(error Incorrect linking mode - it must be either 'static' or 'dynamic')
 endif
+endif
+
+# define SFML stuff
+SFML_INCLUDE	:= "C:/External_libraries/CPP/SFML-2.5.1-source/include"
+ifeq ($(LMODE),static)
+SFML_LIB	:= "C:/External_libraries/CPP/SFML-2.5.1-Mingw64-gcc11.2.0-llvm-msvcrt-static/lib"
+CFLAGS	+= -DSFML_STATIC
+DEBUG_LPATHS	+= -lsfml-network-s-d -lsfml-audio-s-d -lsfml-graphics-s-d -lsfml-window-s-d -lsfml-system-s-d
+RELEASE_LPATHS	+= -lsfml-network-s -lsfml-audio-s -lsfml-graphics-s -lsfml-window-s -lsfml-system-s
+else
+SFML_LIB	:= "C:/External_libraries/CPP/SFML-2.5.1-Mingw64-gcc11.2.0-llvm-msvcrt-dynamic/lib"
+DEBUG_LPATHS	+= -lsfml-network-d -lsfml-audio-d -lsfml-graphics-d -lsfml-window-d -lsfml-system-d
+RELEASE_LPATHS	+= -lsfml-network -lsfml-audio -lsfml-graphics -lsfml-window -lsfml-system
+endif
+SFML_LIB	+= "C:/External_libraries/CPP/SFML-2.5.1-source/extlibs/libs-mingw/x64"
+SFML_EXT_LPATHS	:= -lFLAC -lfreetype -lopenal32 -lvorbisenc -lvorbisfile -lvorbis -logg -lopengl32 -lgdi32 -lwinmm -lws2_32
+DEBUG_LPATHS	+= $(SFML_EXT_LPATHS)
+RELEASE_LPATHS	+= $(SFML_EXT_LPATHS)
+
+# define raylib stuff
+RY_INCLUDE	:= "C:/External_libraries/C/raylib-source/src"
+ifeq ($(LMODE),static)
+RY_LIB	:= "C:/External_libraries/C/raylib-Mingw64-gcc11.2.0-llvm-msvcrt-static/raylib"
+DEBUG_LPATHS	+= -lraylib-s-d
+RELEASE_LPATHS	+= -lraylib-s
+else
+RY_LIB	:= "C:/External_libraries/C/raylib-Mingw64-gcc11.2.0-llvm-msvcrt-dynamic/raylib"
+DEBUG_LPATHS	+= -lraylib-d
+RELEASE_LPATHS	+= -lraylib
 endif
 
 # define output directory
@@ -52,10 +70,10 @@ OBJECTS_SUBDIR	:= objects
 SRC		:= src
 
 # define include directory
-INCLUDE	:= include $(SFML_INCLUDE)
+INCLUDE	:= include $(SFML_INCLUDE) $(RY_INCLUDE)
 
 # define lib directory
-LIB		:= lib $(SFML_LIB) $(EXT_LIB)
+LIB		:= lib $(SFML_LIB) $(RY_LIB)
 
 # OS specific setup
 ifeq ($(OS),Windows_NT)
@@ -100,7 +118,7 @@ RELEASE_OBJECTS	:= $(patsubst $(SRC)%,$(RELEASE_OUTPUT)/$(OBJECTS_SUBDIR)%, $(SO
 
 debug: CFLAGS += $(DEBUG_CFLAGS)
 debug: LFLAGS += $(DEBUG_LFLAGS)
-debug: LPATHS += $(DEBUG_LPATHS) $(EXT_LPATHS)
+debug: LPATHS += $(DEBUG_LPATHS)
 debug: $(DEBUG_OBJECTS)
 	@echo Linking $(MAIN)...
 	@$(CXX) $(CFLAGS) $(INCLUDES) -o $(DEBUG_OUTPUT)/$(MAIN) $(DEBUG_OBJECTS) $(LFLAGS) $(LPATHS) $(LIBS)
@@ -108,7 +126,7 @@ debug: $(DEBUG_OBJECTS)
 
 release: CFLAGS += $(RELEASE_CFLAGS)
 release: LFLAGS += $(RELEASE_LFLAGS)
-release: LPATHS += $(RELEASE_LPATHS) $(EXT_LPATHS)
+release: LPATHS += $(RELEASE_LPATHS)
 release: $(RELEASE_OBJECTS)
 	@echo Linking $(MAIN)...
 	@$(CXX) $(CFLAGS) $(INCLUDES) -o $(RELEASE_OUTPUT)/$(MAIN) $(RELEASE_OBJECTS) $(LFLAGS) $(LPATHS) $(LIBS)
