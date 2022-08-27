@@ -1,13 +1,32 @@
+#ifndef USE_SFML
+
 #include "RAYLIB_version.hpp"
 #include <cmath>
 
-#define CAMERA_SPEED 0.3f //degrees per pixel
+#define CAMERA_MOUSE_SPEED 0.3f //degrees per pixel
+#define CAMERA_KEYBOARD_SPEED 1.f //degrees per frame
 #define CAMERA_DISTANCE 7.f
+#define VIS_THRESHOLD (asinf(CUBE_SIZE/2/CAMERA_DISTANCE))
 #define CUBE_SIZE 3.f
 #define TILE_SIZE (CUBE_SIZE/SIDE_LENGTH)
 #define THIN 0.01f
 #define THICK 0.02f
 #define THICCK 0.03f
+
+struct CameraProperties
+{
+    Camera3D cam;
+    Vector2 deg;
+    Vector3 rad;
+};
+
+struct Animation
+{
+    enum {Pitch, Yaw, Roll} type;
+    unsigned where;
+    float degree;
+    bool manual;
+};
 
 static const std::array<Color,ColorCount> RGB = {WHITE, MAGENTA, GREEN, RED, BLUE, YELLOW};
 
@@ -19,21 +38,41 @@ void Draw3DSide(const Side& side, Vector3 top_left, Vector3 delta_row, Vector3 d
         {
             DrawCubeV
             (
-                {top_left.x+i*delta_row.x+j*delta_col.x, top_left.y+i*delta_row.y+j*delta_col.y, top_left.z+i*delta_row.z+j*delta_col.z},
+                {
+                    top_left.x+i*delta_row.x+j*delta_col.x,
+                    top_left.y+i*delta_row.y+j*delta_col.y,
+                    top_left.z+i*delta_row.z+j*delta_col.z
+                },
                 tile, RGB[side[i][j]]
             );
         }
     }
 }
 
-void Draw3DCube(const Cube& cube)
+void Draw3DCube(const Cube& cube, const CameraProperties& camera)
 {
-    Draw3DSide(cube[Top],{-TILE_SIZE,CUBE_SIZE/2,-TILE_SIZE},{0,0,TILE_SIZE},{TILE_SIZE,0,0},{TILE_SIZE,THIN,TILE_SIZE});
-    Draw3DSide(cube[Left],{-CUBE_SIZE/2,TILE_SIZE,-TILE_SIZE},{0,-TILE_SIZE,0},{0,0,TILE_SIZE},{THIN,TILE_SIZE,TILE_SIZE});
-    Draw3DSide(cube[Front],{-TILE_SIZE,TILE_SIZE,CUBE_SIZE/2},{0,-TILE_SIZE,0},{TILE_SIZE,0,0},{TILE_SIZE,TILE_SIZE,THIN});
-    Draw3DSide(cube[Right],{CUBE_SIZE/2,TILE_SIZE,TILE_SIZE},{0,-TILE_SIZE,0},{0,0,-TILE_SIZE},{THIN,TILE_SIZE,TILE_SIZE});
-    Draw3DSide(cube[Back],{TILE_SIZE,TILE_SIZE,-CUBE_SIZE/2},{0,-TILE_SIZE,0},{-TILE_SIZE,0,0},{TILE_SIZE,TILE_SIZE,THIN});
-    Draw3DSide(cube[Bottom],{-TILE_SIZE,-CUBE_SIZE/2,TILE_SIZE},{0,0,-TILE_SIZE},{TILE_SIZE,0,0},{TILE_SIZE,THIN,TILE_SIZE});
+
+    if (camera.rad.y > VIS_THRESHOLD)
+    {
+        if (camera.cam.position.y > 0)
+            Draw3DSide(cube[Top],{-TILE_SIZE,CUBE_SIZE/2,-TILE_SIZE},{0,0,TILE_SIZE},{TILE_SIZE,0,0},{TILE_SIZE,THIN,TILE_SIZE});
+        else
+            Draw3DSide(cube[Bottom],{-TILE_SIZE,-CUBE_SIZE/2,TILE_SIZE},{0,0,-TILE_SIZE},{TILE_SIZE,0,0},{TILE_SIZE,THIN,TILE_SIZE});
+    }
+    if (camera.rad.x > VIS_THRESHOLD)
+    {
+        if (camera.cam.position.x < 0)
+            Draw3DSide(cube[Left],{-CUBE_SIZE/2,TILE_SIZE,-TILE_SIZE},{0,-TILE_SIZE,0},{0,0,TILE_SIZE},{THIN,TILE_SIZE,TILE_SIZE});
+        else
+            Draw3DSide(cube[Right],{CUBE_SIZE/2,TILE_SIZE,TILE_SIZE},{0,-TILE_SIZE,0},{0,0,-TILE_SIZE},{THIN,TILE_SIZE,TILE_SIZE});
+    }
+    if (camera.rad.z > VIS_THRESHOLD)
+    {
+        if (camera.cam.position.z > 0)
+            Draw3DSide(cube[Front],{-TILE_SIZE,TILE_SIZE,CUBE_SIZE/2},{0,-TILE_SIZE,0},{TILE_SIZE,0,0},{TILE_SIZE,TILE_SIZE,THIN});
+        else
+            Draw3DSide(cube[Back],{TILE_SIZE,TILE_SIZE,-CUBE_SIZE/2},{0,-TILE_SIZE,0},{-TILE_SIZE,0,0},{TILE_SIZE,TILE_SIZE,THIN});
+    }
 
     DrawCubeV({(CUBE_SIZE+THICK)/2,0,TILE_SIZE/2},{THICK,CUBE_SIZE+THICK,THICK},BLACK);
     DrawCubeV({(CUBE_SIZE+THICK)/2,0,-TILE_SIZE/2},{THICK,CUBE_SIZE+THICK,THICK},BLACK);
@@ -101,85 +140,123 @@ Tile FindMouseTile3D(const Ray& ray, Sides side, Vector3 top_left, Vector3 delta
     return Tile(side,--i,--j);
 }
 
-Tile FindMouse3D(const Camera3D& camera)
+Tile FindMouse3D(const CameraProperties& camera)
 {
-    Ray ray = GetMouseRay(GetMousePosition(),camera);
+    Ray ray = GetMouseRay(GetMousePosition(),camera.cam);
     RayCollision collision =
         GetRayCollisionBox(ray,{{-CUBE_SIZE/2,-CUBE_SIZE/2,-CUBE_SIZE/2},{CUBE_SIZE/2,CUBE_SIZE/2,CUBE_SIZE/2}});
     if (!collision.hit)
         return Tile::invalid;
 
-    if (camera.position.x > 0)
+    if (camera.rad.x > VIS_THRESHOLD)
     {
-        collision = GetRayCollisionBox(ray,{{CUBE_SIZE/2,CUBE_SIZE/2,CUBE_SIZE/2},{CUBE_SIZE/2,-CUBE_SIZE/2,-CUBE_SIZE/2}});
-        if (collision.hit)
-            return FindMouseTile3D
-            (
-                ray, Right,
-                {CUBE_SIZE/2,CUBE_SIZE/2,CUBE_SIZE/2},
-                {0,-TILE_SIZE,0}, {0,0,-TILE_SIZE}
-            );
-    }
-    else
-    {
-        collision = GetRayCollisionBox(ray,{{-CUBE_SIZE/2,CUBE_SIZE/2,CUBE_SIZE/2},{-CUBE_SIZE/2,-CUBE_SIZE/2,-CUBE_SIZE/2}});
-        if (collision.hit)
-            return FindMouseTile3D
-            (
-                ray, Left,
-                {-CUBE_SIZE/2,CUBE_SIZE/2,-CUBE_SIZE/2},
-                {0,-TILE_SIZE,0}, {0,0,TILE_SIZE}
-            );
-    }
-
-    if (camera.position.y > 0)
-    {
-        collision = GetRayCollisionBox(ray,{{-CUBE_SIZE/2,CUBE_SIZE/2,-CUBE_SIZE/2},{CUBE_SIZE/2,CUBE_SIZE/2,CUBE_SIZE/2}});
-        if (collision.hit)
-            return FindMouseTile3D
-            (
-                ray, Top,
-                {-CUBE_SIZE/2,CUBE_SIZE/2,-CUBE_SIZE/2},
-                {0,0,TILE_SIZE}, {TILE_SIZE,0,0}
-            );
-    }
-    else
-    {
-        collision = GetRayCollisionBox(ray,{{-CUBE_SIZE/2,-CUBE_SIZE/2,-CUBE_SIZE/2},{CUBE_SIZE/2,-CUBE_SIZE/2,CUBE_SIZE/2}});
-        if (collision.hit)
-            return FindMouseTile3D
-            (
-                ray, Bottom,
-                {-CUBE_SIZE/2,-CUBE_SIZE/2,CUBE_SIZE/2},
-                {0,0,-TILE_SIZE}, {TILE_SIZE,0,0}
-            );
+        if (camera.cam.position.x > 0)
+        {
+            collision = GetRayCollisionBox(ray,{{CUBE_SIZE/2,CUBE_SIZE/2,CUBE_SIZE/2},{CUBE_SIZE/2,-CUBE_SIZE/2,-CUBE_SIZE/2}});
+            if (collision.hit)
+                return FindMouseTile3D
+                (
+                    ray, Right,
+                    {CUBE_SIZE/2,CUBE_SIZE/2,CUBE_SIZE/2},
+                    {0,-TILE_SIZE,0}, {0,0,-TILE_SIZE}
+                );
+        }
+        else
+        {
+            collision = GetRayCollisionBox(ray,{{-CUBE_SIZE/2,CUBE_SIZE/2,CUBE_SIZE/2},{-CUBE_SIZE/2,-CUBE_SIZE/2,-CUBE_SIZE/2}});
+            if (collision.hit)
+                return FindMouseTile3D
+                (
+                    ray, Left,
+                    {-CUBE_SIZE/2,CUBE_SIZE/2,-CUBE_SIZE/2},
+                    {0,-TILE_SIZE,0}, {0,0,TILE_SIZE}
+                );
+        }
     }
 
-    if (camera.position.z > 0)
+    if (camera.rad.y > VIS_THRESHOLD)
     {
-        collision = GetRayCollisionBox(ray,{{-CUBE_SIZE/2,CUBE_SIZE/2,CUBE_SIZE/2},{CUBE_SIZE/2,-CUBE_SIZE/2,CUBE_SIZE/2}});
-        if (collision.hit)
-            return FindMouseTile3D
-            (
-                ray, Front,
-                {-CUBE_SIZE/2,CUBE_SIZE/2,CUBE_SIZE/2},
-                {0,-TILE_SIZE,0}, {TILE_SIZE,0,0}
-            );
+        if (camera.cam.position.y > 0)
+        {
+            collision = GetRayCollisionBox(ray,{{-CUBE_SIZE/2,CUBE_SIZE/2,-CUBE_SIZE/2},{CUBE_SIZE/2,CUBE_SIZE/2,CUBE_SIZE/2}});
+            if (collision.hit)
+                return FindMouseTile3D
+                (
+                    ray, Top,
+                    {-CUBE_SIZE/2,CUBE_SIZE/2,-CUBE_SIZE/2},
+                    {0,0,TILE_SIZE}, {TILE_SIZE,0,0}
+                );
+        }
+        else
+        {
+            collision = GetRayCollisionBox(ray,{{-CUBE_SIZE/2,-CUBE_SIZE/2,-CUBE_SIZE/2},{CUBE_SIZE/2,-CUBE_SIZE/2,CUBE_SIZE/2}});
+            if (collision.hit)
+                return FindMouseTile3D
+                (
+                    ray, Bottom,
+                    {-CUBE_SIZE/2,-CUBE_SIZE/2,CUBE_SIZE/2},
+                    {0,0,-TILE_SIZE}, {TILE_SIZE,0,0}
+                );
+        }
     }
-    else
+
+    if (camera.rad.z > VIS_THRESHOLD)
     {
-        collision = GetRayCollisionBox(ray,{{-CUBE_SIZE/2,CUBE_SIZE/2,-CUBE_SIZE/2},{CUBE_SIZE/2,-CUBE_SIZE/2,-CUBE_SIZE/2}});
-        if (collision.hit)
-            return FindMouseTile3D
-            (
-                ray, Back,
-                {CUBE_SIZE/2,CUBE_SIZE/2,-CUBE_SIZE/2},
-                {0,-TILE_SIZE,0}, {-TILE_SIZE,0,0}
-            );
+        if (camera.cam.position.z > 0)
+        {
+            collision = GetRayCollisionBox(ray,{{-CUBE_SIZE/2,CUBE_SIZE/2,CUBE_SIZE/2},{CUBE_SIZE/2,-CUBE_SIZE/2,CUBE_SIZE/2}});
+            if (collision.hit)
+                return FindMouseTile3D
+                (
+                    ray, Front,
+                    {-CUBE_SIZE/2,CUBE_SIZE/2,CUBE_SIZE/2},
+                    {0,-TILE_SIZE,0}, {TILE_SIZE,0,0}
+                );
+        }
+        else
+        {
+            collision = GetRayCollisionBox(ray,{{-CUBE_SIZE/2,CUBE_SIZE/2,-CUBE_SIZE/2},{CUBE_SIZE/2,-CUBE_SIZE/2,-CUBE_SIZE/2}});
+            if (collision.hit)
+                return FindMouseTile3D
+                (
+                    ray, Back,
+                    {CUBE_SIZE/2,CUBE_SIZE/2,-CUBE_SIZE/2},
+                    {0,-TILE_SIZE,0}, {-TILE_SIZE,0,0}
+                );
+        }
     }
 
     // Shouldn't happen
     return Tile::invalid;
+}
+
+void MoveCamera(CameraProperties& camera, Vector2 degrees)
+{
+    camera.deg.x += degrees.x;
+    camera.deg.y += degrees.y;
+
+    if (camera.deg.x > 180)
+        camera.deg.x -= 360;
+    if (camera.deg.x < -180)
+        camera.deg.x += 360;
+    if (camera.deg.y > 89)
+        camera.deg.y = 89;
+    if (camera.deg.y < -89)
+        camera.deg.y = -89;
+    
+    camera.cam.position =
+    {
+        sinf(DEG2RAD*camera.deg.x) * cosf(DEG2RAD*camera.deg.y) * CAMERA_DISTANCE,
+        sinf(DEG2RAD*camera.deg.y) * CAMERA_DISTANCE,
+        cosf(DEG2RAD*camera.deg.x) * cosf(DEG2RAD*camera.deg.y) * CAMERA_DISTANCE
+    };
+
+    camera.rad =
+    {
+        fabsf(asinf(camera.cam.position.x/CAMERA_DISTANCE)),
+        fabsf(asinf(camera.cam.position.y/CAMERA_DISTANCE)),
+        fabsf(asinf(camera.cam.position.z/CAMERA_DISTANCE))
+    };
 }
 
 void RAYLIB_IO(Cube& cube, Tile& mouse)
@@ -187,25 +264,21 @@ void RAYLIB_IO(Cube& cube, Tile& mouse)
     char buffer[32] = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
     bool enable_keybinds = true;
 
+    SetTraceLogLevel(LOG_WARNING);
+
     InitWindow(WIND_WIDTH, WIND_HEIGHT, "Rubik!");
     SetExitKey(KEY_NULL);
     SetTargetFPS(60);
 
-    Camera3D camera;
-    camera.projection = CAMERA_PERSPECTIVE;
-    camera.target = {0, 0, 0};
-    camera.up = {0, 1, 0};
-    camera.fovy = 60;
+    CameraProperties camera;
+    camera.cam.projection = CAMERA_PERSPECTIVE;
+    camera.cam.target = {0, 0, 0};
+    camera.cam.up = {0, 1, 0};
+    camera.cam.fovy = 60;
+    camera.deg = {-45, 30};
+    MoveCamera(camera,{0,0});
 
-    SetCameraMode(camera,CAMERA_CUSTOM);
-
-    Vector2 camera_rotation = {-45, 30};
-    camera.position =
-    {
-        sinf(DEG2RAD*camera_rotation.x) * cosf(DEG2RAD*camera_rotation.y) * CAMERA_DISTANCE,
-        sinf(DEG2RAD*camera_rotation.y) * CAMERA_DISTANCE,
-        cosf(DEG2RAD*camera_rotation.x) * cosf(DEG2RAD*camera_rotation.y) * CAMERA_DISTANCE
-    };
+    SetCameraMode(camera.cam,CAMERA_CUSTOM);
 
     while (!WindowShouldClose())
     {
@@ -234,22 +307,7 @@ void RAYLIB_IO(Cube& cube, Tile& mouse)
         if (IsMouseButtonDown(MOUSE_BUTTON_RIGHT)) //move camera
         {
             auto move = GetMouseDelta();
-            camera_rotation.x -= move.x * CAMERA_SPEED;
-            camera_rotation.y += move.y * CAMERA_SPEED;
-            if (camera_rotation.x > 180)
-                camera_rotation.x -= 360;
-            if (camera_rotation.x < -180)
-                camera_rotation.x += 360;
-            if (camera_rotation.y > 89)
-                camera_rotation.y = 89;
-            if (camera_rotation.y < -89)
-                camera_rotation.y = -89;
-            camera.position =
-            {
-                sinf(DEG2RAD*camera_rotation.x) * cosf(DEG2RAD*camera_rotation.y) * CAMERA_DISTANCE,
-                sinf(DEG2RAD*camera_rotation.y) * CAMERA_DISTANCE,
-                cosf(DEG2RAD*camera_rotation.x) * cosf(DEG2RAD*camera_rotation.y) * CAMERA_DISTANCE
-            };
+            MoveCamera(camera,{-move.x*CAMERA_MOUSE_SPEED,move.y*CAMERA_MOUSE_SPEED});
         }
 
         if (IsMouseButtonReleased(MOUSE_BUTTON_RIGHT)) //release camera
@@ -293,21 +351,41 @@ void RAYLIB_IO(Cube& cube, Tile& mouse)
             {
                 Shuffle(cube);
             }
+
+            if (IsKeyDown(KEY_I)) // camera up
+            {
+                MoveCamera(camera,{0,CAMERA_KEYBOARD_SPEED});
+            }
+
+            if (IsKeyDown(KEY_J)) // camera left
+            {
+                MoveCamera(camera,{-CAMERA_KEYBOARD_SPEED,0});
+            }
+
+            if (IsKeyDown(KEY_K)) // camera down
+            {
+                MoveCamera(camera,{0,-CAMERA_KEYBOARD_SPEED});
+            }
+
+            if (IsKeyDown(KEY_L)) // camera right
+            {
+                MoveCamera(camera,{CAMERA_KEYBOARD_SPEED,0});
+            }
         }
 
         BeginDrawing();
 
             ClearBackground(BLACK);
 
-            BeginMode3D(camera);
+            BeginMode3D(camera.cam);
 
-                Draw3DCube(cube);
+                Draw3DCube(cube,camera);
 
             EndMode3D();
 
             DrawText("Press Space to shuffle!", (WIND_WIDTH-420)/2, WIND_HEIGHT-48, 32, LIGHTGRAY);
-            DrawText(itoa((int)(camera_rotation.x),buffer,10),WIND_WIDTH-144,16,32,LIGHTGRAY);
-            DrawText(itoa((int)(camera_rotation.y),buffer,10),WIND_WIDTH-64,16,32,LIGHTGRAY);
+            DrawText(itoa((int)(camera.deg.x),buffer,10),WIND_WIDTH-144,16,32,LIGHTGRAY);
+            DrawText(itoa((int)(camera.deg.y),buffer,10),WIND_WIDTH-64,16,32,LIGHTGRAY);
             DrawText(itoa(mouse.side,buffer,10),16,16,32,LIGHTGRAY);
             DrawText(itoa(mouse.row,buffer,10),48,16,32,LIGHTGRAY);
             DrawText(itoa(mouse.column,buffer,10),80,16,32,LIGHTGRAY);
@@ -317,3 +395,5 @@ void RAYLIB_IO(Cube& cube, Tile& mouse)
 
     CloseWindow();
 }
+
+#endif // USE_SFML

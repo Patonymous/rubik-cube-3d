@@ -1,3 +1,5 @@
+#ifdef USE_SFML
+
 #include "SFML_version.hpp"
 
 static const std::array<sf::Color,ColorCount> RGB = {sf::Color::White, sf::Color::Magenta, sf::Color::Green, sf::Color::Red, sf::Color::Blue, sf::Color::Yellow};
@@ -226,3 +228,5 @@ void SFML_IO(Cube& cube, Tile& mouse)
         window.display();
     }
 }
+
+#endif // USE_SFML

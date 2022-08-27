@@ -33,6 +33,9 @@ endif
 endif
 
 # define SFML stuff
+USE_SFML	?= 0
+ifeq ($(USE_SFML),1)
+CFLAGS	+= -DUSE_SFML
 SFML_INCLUDE	:= "C:/External_libraries/CPP/SFML-2.5.1-source/include"
 ifeq ($(LMODE),static)
 SFML_LIB	:= "C:/External_libraries/CPP/SFML-2.5.1-Mingw64-gcc11.2.0-llvm-msvcrt-static/lib"
@@ -48,8 +51,10 @@ SFML_LIB	+= "C:/External_libraries/CPP/SFML-2.5.1-source/extlibs/libs-mingw/x64"
 SFML_EXT_LPATHS	:= -lFLAC -lfreetype -lopenal32 -lvorbisenc -lvorbisfile -lvorbis -logg -lopengl32 -lgdi32 -lwinmm -lws2_32
 DEBUG_LPATHS	+= $(SFML_EXT_LPATHS)
 RELEASE_LPATHS	+= $(SFML_EXT_LPATHS)
+endif
 
 # define raylib stuff
+ifneq ($(USE_SFML),1)
 RY_INCLUDE	:= "C:/External_libraries/C/raylib-source/src"
 ifeq ($(LMODE),static)
 RY_LIB	:= "C:/External_libraries/C/raylib-Mingw64-gcc11.2.0-llvm-msvcrt-static/raylib"
@@ -59,6 +64,10 @@ else
 RY_LIB	:= "C:/External_libraries/C/raylib-Mingw64-gcc11.2.0-llvm-msvcrt-dynamic/raylib"
 DEBUG_LPATHS	+= -lraylib-d
 RELEASE_LPATHS	+= -lraylib
+endif
+RY_EXT_LPATHS	:= -lopengl32 -lgdi32 -lwinmm
+DEBUG_LPATHS	+= $(RY_EXT_LPATHS)
+RELEASE_LPATHS	+= $(RY_EXT_LPATHS)
 endif
 
 # define output directory
@@ -82,9 +91,18 @@ SOURCEDIRS	:= $(SRC)
 INCLUDEDIRS	:= $(INCLUDE)
 LIBDIRS		:= $(LIB)
 FIXPATH = $(subst /,\,$1)
+ifeq ($(SHELL),C:/Program Files/Git/usr/bin/sh.exe)
+$(warning ---------------------------------- WARNING! ----------------------------------)
+$(warning OS recognized as Windows_NT, but shell recognized as bash, using UNIX commands)
+$(warning ---------------------------------- WARNING! ----------------------------------)
+RM	:= rm -f
+RM_ERR_SILENCER	:=
+MD	:= mkdir -p
+else
 RM	:= del /q /f
 RM_ERR_SILENCER	:= 2>NUL
 MD	:= mkdir
+endif
 else
 MAIN	:= main
 SOURCEDIRS	:= $(shell find $(SRC) -type d)

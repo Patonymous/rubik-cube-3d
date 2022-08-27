@@ -304,7 +304,11 @@ int main()
     }
     Tile mouse = Tile::invalid;
 
+#ifdef USE_SFML
+    SFML_IO(cube, mouse);
+#else
     RAYLIB_IO(cube, mouse);
+#endif // USE_SFML
 
     return EXIT_SUCCESS;
 }
