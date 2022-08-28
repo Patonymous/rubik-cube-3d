@@ -18,8 +18,8 @@ struct Tile
     unsigned column;
 
     Tile(Sides s, unsigned r, unsigned c):side(s),row(r),column(c){}
-    // bool operator==(const Tile& other)const{return side==other.side && row==other.row && column==other.column;}
-    // bool operator!=(const Tile& other)const{return !(*this==other);}
+    bool operator==(const Tile& other)const{return side==other.side && row==other.row && column==other.column;}
+    bool operator!=(const Tile& other)const{return !(*this==other);}
 
     const static Tile invalid;
 };
