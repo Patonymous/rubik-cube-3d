@@ -25,7 +25,7 @@ ifeq ($(LMODE),static)
 $(warning ---------------------------------- WARNING! ----------------------------------)
 $(warning If linker errors appear when static linking, 'make clean' first and then retry)
 $(warning ---------------------------------- WARNING! ----------------------------------)
-LFLAGS	+= -static-libgcc -static-libstdc++
+LFLAGS	+= -static-libgcc -static-libstdc++ -static
 else
 ifneq ($(LMODE),dynamic)
 $(error Incorrect linking mode - it must be either 'static' or 'dynamic')
