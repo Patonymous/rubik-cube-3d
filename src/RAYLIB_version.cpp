@@ -2791,11 +2791,12 @@ void RAYLIB_IO(Cube& cube, Tile& mouse)
             if (display_hud)
             {
                 DrawText("Hold Space to shuffle!", (WIND_WIDTH-370)/2, WIND_HEIGHT-64, 32, LIGHTGRAY);
-                DrawText("Controls:\n- Roll Q/E\n- Pitch W/S\n- Yaw A/D\n- HUD H", 32, 32, 32, LIGHTGRAY);
+                DrawText("Controls:\n- Roll Q/E\n- Pitch W/S\n- Yaw A/D", 32, 96, 32, LIGHTGRAY);
+                DrawText("Press H to toggle HUD!", (WIND_WIDTH-370)/2, 32, 32, LIGHTGRAY);
                 DrawText("Move the camera\naround by holding\nright mouse button.", 32, WIND_HEIGHT-240, 32, LIGHTGRAY);
-                DrawText("Use mouse cursor", WIND_WIDTH-324, 32, 32, LIGHTGRAY);
-                DrawText("to select a tile", WIND_WIDTH-273, 80, 32, LIGHTGRAY);
-                DrawText("to rotate.", WIND_WIDTH-191, 128, 32, LIGHTGRAY);
+                DrawText("Use mouse cursor", WIND_WIDTH-324, 96, 32, LIGHTGRAY);
+                DrawText("to select a tile", WIND_WIDTH-273, 144, 32, LIGHTGRAY);
+                DrawText("to rotate.", WIND_WIDTH-191, 192, 32, LIGHTGRAY);
                 DrawText("You can also grab", WIND_WIDTH-328, WIND_HEIGHT-240, 32, LIGHTGRAY);
                 DrawText("a tile by holding", WIND_WIDTH-287, WIND_HEIGHT-192, 32, LIGHTGRAY);
                 DrawText("left mouse button.", WIND_WIDTH-325, WIND_HEIGHT-144, 32, LIGHTGRAY);
