@@ -13,10 +13,11 @@
 #define THICK 0.00375f
 #define ANIM_MOUSE_SPEED 0.3f //degrees per pixel
 #define ANIM_AUTO_SPEED 5.f //degrees per frame
+#define ANIM_SHUFFLE_SPEED 15.f //degrees per frame
 #define LINE_COLOR BLACK
 #define SIDE_COLOR GRAY
 
-static const std::array<Color,ColorCount> RGB = {WHITE, MAGENTA, GREEN, RED, BLUE, YELLOW};
+static const std::array<Color,ColorCount> RGB = {WHITE, ORANGE, GREEN, RED, BLUE, YELLOW};
 
 void DrawQuad3D(Vector3 v1, Vector3 v2, Vector3 v3, Vector3 v4, Color color)
 {
@@ -116,6 +117,82 @@ void DrawRubikLine3D
         }
 }
 
+void DrawRubikSide3D
+    (const Side& side, Vector3 top_left, Vector3 delta_row, Vector3 delta_col,
+    Vector3 line_offset, bool vertical)
+{
+    for (unsigned i=0; i<SIDE_LENGTH; ++i)
+    {
+        DrawRubikLine3D
+        (
+            side,
+            {
+                top_left.x+i*(vertical?delta_col.x:delta_row.x),
+                top_left.y+i*(vertical?delta_col.y:delta_row.y),
+                top_left.z+i*(vertical?delta_col.z:delta_row.z)
+            },
+            delta_row, delta_col,
+            line_offset,
+            i, vertical
+        );
+        if (i != 0)
+            DrawLine3D
+            (
+                {
+                    top_left.x+i*(vertical?delta_col.x:delta_row.x)+line_offset.x,
+                    top_left.y+i*(vertical?delta_col.y:delta_row.y)+line_offset.y,
+                    top_left.z+i*(vertical?delta_col.z:delta_row.z)+line_offset.z
+                },
+                {
+                    top_left.x+i*(vertical?delta_col.x:delta_row.x)
+                        +SIDE_LENGTH*(vertical?delta_row.x:delta_col.x)+line_offset.x,
+                    top_left.y+i*(vertical?delta_col.y:delta_row.y)
+                        +SIDE_LENGTH*(vertical?delta_row.y:delta_col.y)+line_offset.y,
+                    top_left.z+i*(vertical?delta_col.z:delta_row.z)
+                        +SIDE_LENGTH*(vertical?delta_row.z:delta_col.z)+line_offset.z
+                },
+                LINE_COLOR
+            );
+    }
+}
+
+Vector3 Transform3D(Animation anim, Vector3 vector)
+{
+    switch (anim.type)
+    {
+    case Animation::Pitch:
+        return
+        {
+            vector.x,
+            cosf(anim.angle*DEG2RAD)*vector.y+sinf(anim.angle*DEG2RAD)*vector.z,
+            cosf(anim.angle*DEG2RAD)*vector.z-sinf(anim.angle*DEG2RAD)*vector.y
+        };
+        break;
+
+    case Animation::Yaw:
+        return
+        {
+            cosf(anim.angle*DEG2RAD)*vector.x+sinf(anim.angle*DEG2RAD)*vector.z,
+            vector.y,
+            cosf(anim.angle*DEG2RAD)*vector.z-sinf(anim.angle*DEG2RAD)*vector.x
+        };
+        break;
+
+    case Animation::Roll:
+        return
+        {
+            cosf(anim.angle*DEG2RAD)*vector.x+sinf(anim.angle*DEG2RAD)*vector.y,
+            cosf(anim.angle*DEG2RAD)*vector.y-sinf(anim.angle*DEG2RAD)*vector.x,
+            vector.z
+        };
+        break;
+
+    default:
+        return vector;
+        break;
+    }
+}
+
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wimplicit-fallthrough="
 
@@ -129,94 +206,20 @@ void DrawRubikCube3D(const Cube& cube, const CameraProperties& camera, const Ani
         Vector3 delta_row = {0,0,TILE_SIZE};
         Vector3 delta_col = {TILE_SIZE,0,0};
         Vector3 line_offset = {0, THICK, 0};
-        Vector3 rot_top_left, rot_delta_row, rot_delta_col;
+        Vector3 rot_top_left = Transform3D(anim,top_left);
+        Vector3 rot_delta_row = Transform3D(anim,delta_row);
+        Vector3 rot_delta_col = Transform3D(anim,delta_col);
         switch (anim.type)
         {
         case Animation::Yaw:
             if (anim.where.row == 0)
             {
-                rot_top_left =
-                {
-                    cosf(anim.angle*DEG2RAD)*top_left.x+sinf(anim.angle*DEG2RAD)*top_left.z,
-                    top_left.y,
-                    cosf(anim.angle*DEG2RAD)*top_left.z-sinf(anim.angle*DEG2RAD)*top_left.x
-                };
-                rot_delta_row =
-                {
-                    cosf(anim.angle*DEG2RAD)*delta_row.x+sinf(anim.angle*DEG2RAD)*delta_row.z,
-                    delta_row.y,
-                    cosf(anim.angle*DEG2RAD)*delta_row.z-sinf(anim.angle*DEG2RAD)*delta_row.x
-                };
-                rot_delta_col =
-                {
-                    cosf(anim.angle*DEG2RAD)*delta_col.x+sinf(anim.angle*DEG2RAD)*delta_col.z,
-                    delta_col.y,
-                    cosf(anim.angle*DEG2RAD)*delta_col.z-sinf(anim.angle*DEG2RAD)*delta_col.x
-                };
-                for (unsigned i=0; i<SIDE_LENGTH; ++i)
-                {
-                    DrawRubikLine3D
-                    (
-                        cube[side],
-                        {
-                            rot_top_left.x+i*rot_delta_col.x,
-                            rot_top_left.y+i*rot_delta_col.y,
-                            rot_top_left.z+i*rot_delta_col.z
-                        },
-                        rot_delta_row, rot_delta_col,
-                        line_offset,
-                        i, true
-                    );
-                    if (i != 0)
-                        DrawLine3D
-                        (
-                            {
-                                rot_top_left.x+i*rot_delta_col.x+line_offset.x,
-                                rot_top_left.y+i*rot_delta_col.y+line_offset.y,
-                                rot_top_left.z+i*rot_delta_col.z+line_offset.z
-                            },
-                            {
-                                rot_top_left.x+i*rot_delta_col.x+SIDE_LENGTH*rot_delta_row.x+line_offset.x,
-                                rot_top_left.y+i*rot_delta_col.y+SIDE_LENGTH*rot_delta_row.y+line_offset.y,
-                                rot_top_left.z+i*rot_delta_col.z+SIDE_LENGTH*rot_delta_row.z+line_offset.z
-                            },
-                            LINE_COLOR
-                        );
-                }
+                DrawRubikSide3D(cube[side],rot_top_left,rot_delta_row,rot_delta_col,line_offset,true);
                 break;
             }
         default:
         case Animation::None:
-            for (unsigned i=0; i<SIDE_LENGTH; ++i)
-            {
-                DrawRubikLine3D
-                (
-                    cube[side],
-                    {
-                        top_left.x+i*delta_col.x,
-                        top_left.y+i*delta_col.y,
-                        top_left.z+i*delta_col.z
-                    },
-                    delta_row, delta_col,
-                    line_offset,
-                    i, true
-                );
-                if (i != 0)
-                    DrawLine3D
-                    (
-                        {
-                            top_left.x+i*delta_col.x+line_offset.x,
-                            top_left.y+i*delta_col.y+line_offset.y,
-                            top_left.z+i*delta_col.z+line_offset.z
-                        },
-                        {
-                            top_left.x+i*delta_col.x+SIDE_LENGTH*delta_row.x+line_offset.x,
-                            top_left.y+i*delta_col.y+SIDE_LENGTH*delta_row.y+line_offset.y,
-                            top_left.z+i*delta_col.z+SIDE_LENGTH*delta_row.z+line_offset.z
-                        },
-                        LINE_COLOR
-                    );
-            }
+            DrawRubikSide3D(cube[Top],top_left,delta_row,delta_col,line_offset,true);
             break;
 
         case Animation::Pitch:
@@ -255,24 +258,6 @@ void DrawRubikCube3D(const Cube& cube, const CameraProperties& camera, const Ani
                             LINE_COLOR
                         );
                 }
-                rot_top_left =
-                {
-                    top_left.x,
-                    cosf(anim.angle*DEG2RAD)*top_left.y+sinf(anim.angle*DEG2RAD)*top_left.z,
-                    cosf(anim.angle*DEG2RAD)*top_left.z-sinf(anim.angle*DEG2RAD)*top_left.y
-                };
-                rot_delta_row =
-                {
-                    delta_row.x,
-                    cosf(anim.angle*DEG2RAD)*delta_row.y+sinf(anim.angle*DEG2RAD)*delta_row.z,
-                    cosf(anim.angle*DEG2RAD)*delta_row.z-sinf(anim.angle*DEG2RAD)*delta_row.y
-                };
-                rot_delta_col =
-                {
-                    delta_col.x,
-                    cosf(anim.angle*DEG2RAD)*delta_col.y+sinf(anim.angle*DEG2RAD)*delta_col.z,
-                    cosf(anim.angle*DEG2RAD)*delta_col.z-sinf(anim.angle*DEG2RAD)*delta_col.y
-                };
                 DrawRubikLine3D
                 (
                     cube[side],
@@ -285,92 +270,86 @@ void DrawRubikCube3D(const Cube& cube, const CameraProperties& camera, const Ani
                     line_offset,
                     trans_where.column, true
                 );
-                if (camera.cam.position.x > 0)
-                {
-                    if (trans_where.column < SIDE_LENGTH-1)
-                        DrawTriangle3D
-                        (
-                            {
-                                rot_top_left.x+(trans_where.column+1)*rot_delta_col.x,
-                                rot_top_left.y+(trans_where.column+1)*rot_delta_col.y,
-                                rot_top_left.z+(trans_where.column+1)*rot_delta_col.z
-                            },
-                            {
-                                rot_top_left.x+(trans_where.column+1)*rot_delta_col.x+SIDE_LENGTH*rot_delta_row.x,
-                                rot_top_left.y+(trans_where.column+1)*rot_delta_col.y+SIDE_LENGTH*rot_delta_row.y,
-                                rot_top_left.z+(trans_where.column+1)*rot_delta_col.z+SIDE_LENGTH*rot_delta_row.z
-                            },
-                            {
-                                -SIDE_LENGTH*delta_col.x/2+(trans_where.column+1)*delta_col.x,
-                                -SIDE_LENGTH*delta_col.y/2+(trans_where.column+1)*delta_col.y,
-                                -SIDE_LENGTH*delta_col.z/2+(trans_where.column+1)*delta_col.z
-                            },
-                            SIDE_COLOR
-                        );
-                    if (trans_where.column > 0)
-                        DrawTriangle3D
-                        (
-                            {
-                                top_left.x+(trans_where.column)*delta_col.x,
-                                top_left.y+(trans_where.column)*delta_col.y,
-                                top_left.z+(trans_where.column)*delta_col.z
-                            },
-                            {
-                                top_left.x+(trans_where.column)*delta_col.x+SIDE_LENGTH*delta_row.x,
-                                top_left.y+(trans_where.column)*delta_col.y+SIDE_LENGTH*delta_row.y,
-                                top_left.z+(trans_where.column)*delta_col.z+SIDE_LENGTH*delta_row.z
-                            },
-                            {
-                                -SIDE_LENGTH*delta_col.x/2+(trans_where.column)*delta_col.x,
-                                -SIDE_LENGTH*delta_col.y/2+(trans_where.column)*delta_col.y,
-                                -SIDE_LENGTH*delta_col.z/2+(trans_where.column)*delta_col.z
-                            },
-                            SIDE_COLOR
-                        );
-                }
-                else
-                {
-                    if (trans_where.column > 0)
-                        DrawTriangle3D
-                        (
-                            {
-                                rot_top_left.x+(trans_where.column)*rot_delta_col.x+SIDE_LENGTH*rot_delta_row.x,
-                                rot_top_left.y+(trans_where.column)*rot_delta_col.y+SIDE_LENGTH*rot_delta_row.y,
-                                rot_top_left.z+(trans_where.column)*rot_delta_col.z+SIDE_LENGTH*rot_delta_row.z
-                            },
-                            {
-                                rot_top_left.x+(trans_where.column)*rot_delta_col.x,
-                                rot_top_left.y+(trans_where.column)*rot_delta_col.y,
-                                rot_top_left.z+(trans_where.column)*rot_delta_col.z
-                            },
-                            {
-                                -SIDE_LENGTH*delta_col.x/2+(trans_where.column)*delta_col.x,
-                                -SIDE_LENGTH*delta_col.y/2+(trans_where.column)*delta_col.y,
-                                -SIDE_LENGTH*delta_col.z/2+(trans_where.column)*delta_col.z
-                            },
-                            SIDE_COLOR
-                        );
-                    if (trans_where.column < SIDE_LENGTH-1)
-                        DrawTriangle3D
-                        (
-                            {
-                                top_left.x+(trans_where.column+1)*delta_col.x+SIDE_LENGTH*delta_row.x,
-                                top_left.y+(trans_where.column+1)*delta_col.y+SIDE_LENGTH*delta_row.y,
-                                top_left.z+(trans_where.column+1)*delta_col.z+SIDE_LENGTH*delta_row.z
-                            },
-                            {
-                                top_left.x+(trans_where.column+1)*delta_col.x,
-                                top_left.y+(trans_where.column+1)*delta_col.y,
-                                top_left.z+(trans_where.column+1)*delta_col.z
-                            },
-                            {
-                                -SIDE_LENGTH*delta_col.x/2+(trans_where.column+1)*delta_col.x,
-                                -SIDE_LENGTH*delta_col.y/2+(trans_where.column+1)*delta_col.y,
-                                -SIDE_LENGTH*delta_col.z/2+(trans_where.column+1)*delta_col.z
-                            },
-                            SIDE_COLOR
-                        );
-                }
+                if (trans_where.column < SIDE_LENGTH-1)
+                    DrawTriangle3D
+                    (
+                        {
+                            rot_top_left.x+(trans_where.column+1)*rot_delta_col.x,
+                            rot_top_left.y+(trans_where.column+1)*rot_delta_col.y,
+                            rot_top_left.z+(trans_where.column+1)*rot_delta_col.z
+                        },
+                        {
+                            rot_top_left.x+(trans_where.column+1)*rot_delta_col.x+SIDE_LENGTH*rot_delta_row.x,
+                            rot_top_left.y+(trans_where.column+1)*rot_delta_col.y+SIDE_LENGTH*rot_delta_row.y,
+                            rot_top_left.z+(trans_where.column+1)*rot_delta_col.z+SIDE_LENGTH*rot_delta_row.z
+                        },
+                        {
+                            -SIDE_LENGTH*delta_col.x/2+(trans_where.column+1)*delta_col.x,
+                            -SIDE_LENGTH*delta_col.y/2+(trans_where.column+1)*delta_col.y,
+                            -SIDE_LENGTH*delta_col.z/2+(trans_where.column+1)*delta_col.z
+                        },
+                        SIDE_COLOR
+                    );
+                if (trans_where.column > 0)
+                    DrawTriangle3D
+                    (
+                        {
+                            top_left.x+(trans_where.column)*delta_col.x,
+                            top_left.y+(trans_where.column)*delta_col.y,
+                            top_left.z+(trans_where.column)*delta_col.z
+                        },
+                        {
+                            top_left.x+(trans_where.column)*delta_col.x+SIDE_LENGTH*delta_row.x,
+                            top_left.y+(trans_where.column)*delta_col.y+SIDE_LENGTH*delta_row.y,
+                            top_left.z+(trans_where.column)*delta_col.z+SIDE_LENGTH*delta_row.z
+                        },
+                        {
+                            -SIDE_LENGTH*delta_col.x/2+(trans_where.column)*delta_col.x,
+                            -SIDE_LENGTH*delta_col.y/2+(trans_where.column)*delta_col.y,
+                            -SIDE_LENGTH*delta_col.z/2+(trans_where.column)*delta_col.z
+                        },
+                        SIDE_COLOR
+                    );
+                if (trans_where.column > 0)
+                    DrawTriangle3D
+                    (
+                        {
+                            rot_top_left.x+(trans_where.column)*rot_delta_col.x+SIDE_LENGTH*rot_delta_row.x,
+                            rot_top_left.y+(trans_where.column)*rot_delta_col.y+SIDE_LENGTH*rot_delta_row.y,
+                            rot_top_left.z+(trans_where.column)*rot_delta_col.z+SIDE_LENGTH*rot_delta_row.z
+                        },
+                        {
+                            rot_top_left.x+(trans_where.column)*rot_delta_col.x,
+                            rot_top_left.y+(trans_where.column)*rot_delta_col.y,
+                            rot_top_left.z+(trans_where.column)*rot_delta_col.z
+                        },
+                        {
+                            -SIDE_LENGTH*delta_col.x/2+(trans_where.column)*delta_col.x,
+                            -SIDE_LENGTH*delta_col.y/2+(trans_where.column)*delta_col.y,
+                            -SIDE_LENGTH*delta_col.z/2+(trans_where.column)*delta_col.z
+                        },
+                        SIDE_COLOR
+                    );
+                if (trans_where.column < SIDE_LENGTH-1)
+                    DrawTriangle3D
+                    (
+                        {
+                            top_left.x+(trans_where.column+1)*delta_col.x+SIDE_LENGTH*delta_row.x,
+                            top_left.y+(trans_where.column+1)*delta_col.y+SIDE_LENGTH*delta_row.y,
+                            top_left.z+(trans_where.column+1)*delta_col.z+SIDE_LENGTH*delta_row.z
+                        },
+                        {
+                            top_left.x+(trans_where.column+1)*delta_col.x,
+                            top_left.y+(trans_where.column+1)*delta_col.y,
+                            top_left.z+(trans_where.column+1)*delta_col.z
+                        },
+                        {
+                            -SIDE_LENGTH*delta_col.x/2+(trans_where.column+1)*delta_col.x,
+                            -SIDE_LENGTH*delta_col.y/2+(trans_where.column+1)*delta_col.y,
+                            -SIDE_LENGTH*delta_col.z/2+(trans_where.column+1)*delta_col.z
+                        },
+                        SIDE_COLOR
+                    );
                 break;
             }
 
@@ -425,24 +404,6 @@ void DrawRubikCube3D(const Cube& cube, const CameraProperties& camera, const Ani
                         LINE_COLOR
                     );
                 }
-                rot_top_left =
-                {
-                    cosf(anim.angle*DEG2RAD)*top_left.x+sinf(anim.angle*DEG2RAD)*top_left.y,
-                    cosf(anim.angle*DEG2RAD)*top_left.y-sinf(anim.angle*DEG2RAD)*top_left.x,
-                    top_left.z
-                };
-                rot_delta_row =
-                {
-                    cosf(anim.angle*DEG2RAD)*delta_row.x+sinf(anim.angle*DEG2RAD)*delta_row.y,
-                    cosf(anim.angle*DEG2RAD)*delta_row.y-sinf(anim.angle*DEG2RAD)*delta_row.x,
-                    delta_row.z
-                };
-                rot_delta_col =
-                {
-                    cosf(anim.angle*DEG2RAD)*delta_col.x+sinf(anim.angle*DEG2RAD)*delta_col.y,
-                    cosf(anim.angle*DEG2RAD)*delta_col.y-sinf(anim.angle*DEG2RAD)*delta_col.x,
-                    delta_col.z
-                };
                 DrawRubikLine3D
                 (
                     cube[side],
@@ -455,92 +416,86 @@ void DrawRubikCube3D(const Cube& cube, const CameraProperties& camera, const Ani
                     line_offset,
                     trans_where.row, false
                 );
-                if (camera.cam.position.z > 0)
-                {
-                    if (trans_where.row < SIDE_LENGTH-1)
-                        DrawTriangle3D
-                        (
-                            {
-                                rot_top_left.x+(trans_where.row+1)*rot_delta_row.x+SIDE_LENGTH*rot_delta_col.x,
-                                rot_top_left.y+(trans_where.row+1)*rot_delta_row.y+SIDE_LENGTH*rot_delta_col.y,
-                                rot_top_left.z+(trans_where.row+1)*rot_delta_row.z+SIDE_LENGTH*rot_delta_col.z
-                            },
-                            {
-                                rot_top_left.x+(trans_where.row+1)*rot_delta_row.x,
-                                rot_top_left.y+(trans_where.row+1)*rot_delta_row.y,
-                                rot_top_left.z+(trans_where.row+1)*rot_delta_row.z
-                            },
-                            {
-                                -SIDE_LENGTH*delta_row.x/2+(trans_where.row+1)*delta_row.x,
-                                -SIDE_LENGTH*delta_row.y/2+(trans_where.row+1)*delta_row.y,
-                                -SIDE_LENGTH*delta_row.z/2+(trans_where.row+1)*delta_row.z
-                            },
-                            SIDE_COLOR
-                        );
-                    if (trans_where.row > 0)
-                        DrawTriangle3D
-                        (
-                            {
-                                top_left.x+(trans_where.row)*delta_row.x+SIDE_LENGTH*delta_col.x,
-                                top_left.y+(trans_where.row)*delta_row.y+SIDE_LENGTH*delta_col.y,
-                                top_left.z+(trans_where.row)*delta_row.z+SIDE_LENGTH*delta_col.z
-                            },
-                            {
-                                top_left.x+(trans_where.row)*delta_row.x,
-                                top_left.y+(trans_where.row)*delta_row.y,
-                                top_left.z+(trans_where.row)*delta_row.z
-                            },
-                            {
-                                -SIDE_LENGTH*delta_row.x/2+(trans_where.row)*delta_row.x,
-                                -SIDE_LENGTH*delta_row.y/2+(trans_where.row)*delta_row.y,
-                                -SIDE_LENGTH*delta_row.z/2+(trans_where.row)*delta_row.z
-                            },
-                            SIDE_COLOR
-                        );
-                }
-                else
-                {
-                    if (trans_where.row > 0)
-                        DrawTriangle3D
-                        (
-                            {
-                                rot_top_left.x+(trans_where.row)*rot_delta_row.x,
-                                rot_top_left.y+(trans_where.row)*rot_delta_row.y,
-                                rot_top_left.z+(trans_where.row)*rot_delta_row.z
-                            },
-                            {
-                                rot_top_left.x+(trans_where.row)*rot_delta_row.x+SIDE_LENGTH*rot_delta_col.x,
-                                rot_top_left.y+(trans_where.row)*rot_delta_row.y+SIDE_LENGTH*rot_delta_col.y,
-                                rot_top_left.z+(trans_where.row)*rot_delta_row.z+SIDE_LENGTH*rot_delta_col.z
-                            },
-                            {
-                                -SIDE_LENGTH*delta_row.x/2+(trans_where.row)*delta_row.x,
-                                -SIDE_LENGTH*delta_row.y/2+(trans_where.row)*delta_row.y,
-                                -SIDE_LENGTH*delta_row.z/2+(trans_where.row)*delta_row.z
-                            },
-                            SIDE_COLOR
-                        );
-                    if (trans_where.row < SIDE_LENGTH-1)
-                        DrawTriangle3D
-                        (
-                            {
-                                top_left.x+(trans_where.row+1)*delta_row.x,
-                                top_left.y+(trans_where.row+1)*delta_row.y,
-                                top_left.z+(trans_where.row+1)*delta_row.z
-                            },
-                            {
-                                top_left.x+(trans_where.row+1)*delta_row.x+SIDE_LENGTH*delta_col.x,
-                                top_left.y+(trans_where.row+1)*delta_row.y+SIDE_LENGTH*delta_col.y,
-                                top_left.z+(trans_where.row+1)*delta_row.z+SIDE_LENGTH*delta_col.z
-                            },
-                            {
-                                -SIDE_LENGTH*delta_row.x/2+(trans_where.row+1)*delta_row.x,
-                                -SIDE_LENGTH*delta_row.y/2+(trans_where.row+1)*delta_row.y,
-                                -SIDE_LENGTH*delta_row.z/2+(trans_where.row+1)*delta_row.z
-                            },
-                            SIDE_COLOR
-                        );
-                }
+                if (trans_where.row < SIDE_LENGTH-1)
+                    DrawTriangle3D
+                    (
+                        {
+                            rot_top_left.x+(trans_where.row+1)*rot_delta_row.x+SIDE_LENGTH*rot_delta_col.x,
+                            rot_top_left.y+(trans_where.row+1)*rot_delta_row.y+SIDE_LENGTH*rot_delta_col.y,
+                            rot_top_left.z+(trans_where.row+1)*rot_delta_row.z+SIDE_LENGTH*rot_delta_col.z
+                        },
+                        {
+                            rot_top_left.x+(trans_where.row+1)*rot_delta_row.x,
+                            rot_top_left.y+(trans_where.row+1)*rot_delta_row.y,
+                            rot_top_left.z+(trans_where.row+1)*rot_delta_row.z
+                        },
+                        {
+                            -SIDE_LENGTH*delta_row.x/2+(trans_where.row+1)*delta_row.x,
+                            -SIDE_LENGTH*delta_row.y/2+(trans_where.row+1)*delta_row.y,
+                            -SIDE_LENGTH*delta_row.z/2+(trans_where.row+1)*delta_row.z
+                        },
+                        SIDE_COLOR
+                    );
+                if (trans_where.row > 0)
+                    DrawTriangle3D
+                    (
+                        {
+                            top_left.x+(trans_where.row)*delta_row.x+SIDE_LENGTH*delta_col.x,
+                            top_left.y+(trans_where.row)*delta_row.y+SIDE_LENGTH*delta_col.y,
+                            top_left.z+(trans_where.row)*delta_row.z+SIDE_LENGTH*delta_col.z
+                        },
+                        {
+                            top_left.x+(trans_where.row)*delta_row.x,
+                            top_left.y+(trans_where.row)*delta_row.y,
+                            top_left.z+(trans_where.row)*delta_row.z
+                        },
+                        {
+                            -SIDE_LENGTH*delta_row.x/2+(trans_where.row)*delta_row.x,
+                            -SIDE_LENGTH*delta_row.y/2+(trans_where.row)*delta_row.y,
+                            -SIDE_LENGTH*delta_row.z/2+(trans_where.row)*delta_row.z
+                        },
+                        SIDE_COLOR
+                    );
+                if (trans_where.row > 0)
+                    DrawTriangle3D
+                    (
+                        {
+                            rot_top_left.x+(trans_where.row)*rot_delta_row.x,
+                            rot_top_left.y+(trans_where.row)*rot_delta_row.y,
+                            rot_top_left.z+(trans_where.row)*rot_delta_row.z
+                        },
+                        {
+                            rot_top_left.x+(trans_where.row)*rot_delta_row.x+SIDE_LENGTH*rot_delta_col.x,
+                            rot_top_left.y+(trans_where.row)*rot_delta_row.y+SIDE_LENGTH*rot_delta_col.y,
+                            rot_top_left.z+(trans_where.row)*rot_delta_row.z+SIDE_LENGTH*rot_delta_col.z
+                        },
+                        {
+                            -SIDE_LENGTH*delta_row.x/2+(trans_where.row)*delta_row.x,
+                            -SIDE_LENGTH*delta_row.y/2+(trans_where.row)*delta_row.y,
+                            -SIDE_LENGTH*delta_row.z/2+(trans_where.row)*delta_row.z
+                        },
+                        SIDE_COLOR
+                    );
+                if (trans_where.row < SIDE_LENGTH-1)
+                    DrawTriangle3D
+                    (
+                        {
+                            top_left.x+(trans_where.row+1)*delta_row.x,
+                            top_left.y+(trans_where.row+1)*delta_row.y,
+                            top_left.z+(trans_where.row+1)*delta_row.z
+                        },
+                        {
+                            top_left.x+(trans_where.row+1)*delta_row.x+SIDE_LENGTH*delta_col.x,
+                            top_left.y+(trans_where.row+1)*delta_row.y+SIDE_LENGTH*delta_col.y,
+                            top_left.z+(trans_where.row+1)*delta_row.z+SIDE_LENGTH*delta_col.z
+                        },
+                        {
+                            -SIDE_LENGTH*delta_row.x/2+(trans_where.row+1)*delta_row.x,
+                            -SIDE_LENGTH*delta_row.y/2+(trans_where.row+1)*delta_row.y,
+                            -SIDE_LENGTH*delta_row.z/2+(trans_where.row+1)*delta_row.z
+                        },
+                        SIDE_COLOR
+                    );
                 break;
             }
         }
@@ -554,94 +509,20 @@ void DrawRubikCube3D(const Cube& cube, const CameraProperties& camera, const Ani
         Vector3 delta_row = {0,0,-TILE_SIZE};
         Vector3 delta_col = {TILE_SIZE,0,0};
         Vector3 line_offset = {0, -THICK, 0};
-        Vector3 rot_top_left, rot_delta_row, rot_delta_col;
+        Vector3 rot_top_left = Transform3D(anim,top_left);
+        Vector3 rot_delta_row = Transform3D(anim,delta_row);
+        Vector3 rot_delta_col = Transform3D(anim,delta_col);
         switch (anim.type)
         {
         case Animation::Yaw:
             if (anim.where.row == SIDE_LENGTH-1)
             {
-                rot_top_left =
-                {
-                    cosf(anim.angle*DEG2RAD)*top_left.x+sinf(anim.angle*DEG2RAD)*top_left.z,
-                    top_left.y,
-                    cosf(anim.angle*DEG2RAD)*top_left.z-sinf(anim.angle*DEG2RAD)*top_left.x
-                };
-                rot_delta_row =
-                {
-                    cosf(anim.angle*DEG2RAD)*delta_row.x+sinf(anim.angle*DEG2RAD)*delta_row.z,
-                    delta_row.y,
-                    cosf(anim.angle*DEG2RAD)*delta_row.z-sinf(anim.angle*DEG2RAD)*delta_row.x
-                };
-                rot_delta_col =
-                {
-                    cosf(anim.angle*DEG2RAD)*delta_col.x+sinf(anim.angle*DEG2RAD)*delta_col.z,
-                    delta_col.y,
-                    cosf(anim.angle*DEG2RAD)*delta_col.z-sinf(anim.angle*DEG2RAD)*delta_col.x
-                };
-                for (unsigned i=0; i<SIDE_LENGTH; ++i)
-                {
-                    DrawRubikLine3D
-                    (
-                        cube[side],
-                        {
-                            rot_top_left.x+i*rot_delta_col.x,
-                            rot_top_left.y+i*rot_delta_col.y,
-                            rot_top_left.z+i*rot_delta_col.z
-                        },
-                        rot_delta_row, rot_delta_col,
-                        line_offset,
-                        i, true
-                    );
-                    if (i != 0)
-                        DrawLine3D
-                        (
-                            {
-                                rot_top_left.x+i*rot_delta_col.x+line_offset.x,
-                                rot_top_left.y+i*rot_delta_col.y+line_offset.y,
-                                rot_top_left.z+i*rot_delta_col.z+line_offset.z
-                            },
-                            {
-                                rot_top_left.x+i*rot_delta_col.x+SIDE_LENGTH*rot_delta_row.x+line_offset.x,
-                                rot_top_left.y+i*rot_delta_col.y+SIDE_LENGTH*rot_delta_row.y+line_offset.y,
-                                rot_top_left.z+i*rot_delta_col.z+SIDE_LENGTH*rot_delta_row.z+line_offset.z
-                            },
-                            LINE_COLOR
-                        );
-                }
+                DrawRubikSide3D(cube[side],rot_top_left,rot_delta_row,rot_delta_col,line_offset,true);
                 break;
             }
         default:
         case Animation::None:
-            for (unsigned i=0; i<SIDE_LENGTH; ++i)
-            {
-                DrawRubikLine3D
-                (
-                    cube[side],
-                    {
-                        top_left.x+i*delta_col.x,
-                        top_left.y+i*delta_col.y,
-                        top_left.z+i*delta_col.z
-                    },
-                    delta_row, delta_col,
-                    line_offset,
-                    i, true
-                );
-                if (i != 0)
-                    DrawLine3D
-                    (
-                        {
-                            top_left.x+i*delta_col.x+line_offset.x,
-                            top_left.y+i*delta_col.y+line_offset.y,
-                            top_left.z+i*delta_col.z+line_offset.z
-                        },
-                        {
-                            top_left.x+i*delta_col.x+SIDE_LENGTH*delta_row.x+line_offset.x,
-                            top_left.y+i*delta_col.y+SIDE_LENGTH*delta_row.y+line_offset.y,
-                            top_left.z+i*delta_col.z+SIDE_LENGTH*delta_row.z+line_offset.z
-                        },
-                        LINE_COLOR
-                    );
-            }
+            DrawRubikSide3D(cube[side],top_left,delta_row,delta_col,line_offset,true);
             break;
 
         case Animation::Pitch:
@@ -680,24 +561,6 @@ void DrawRubikCube3D(const Cube& cube, const CameraProperties& camera, const Ani
                             LINE_COLOR
                         );
                 }
-                rot_top_left =
-                {
-                    top_left.x,
-                    cosf(anim.angle*DEG2RAD)*top_left.y+sinf(anim.angle*DEG2RAD)*top_left.z,
-                    cosf(anim.angle*DEG2RAD)*top_left.z-sinf(anim.angle*DEG2RAD)*top_left.y
-                };
-                rot_delta_row =
-                {
-                    delta_row.x,
-                    cosf(anim.angle*DEG2RAD)*delta_row.y+sinf(anim.angle*DEG2RAD)*delta_row.z,
-                    cosf(anim.angle*DEG2RAD)*delta_row.z-sinf(anim.angle*DEG2RAD)*delta_row.y
-                };
-                rot_delta_col =
-                {
-                    delta_col.x,
-                    cosf(anim.angle*DEG2RAD)*delta_col.y+sinf(anim.angle*DEG2RAD)*delta_col.z,
-                    cosf(anim.angle*DEG2RAD)*delta_col.z-sinf(anim.angle*DEG2RAD)*delta_col.y
-                };
                 DrawRubikLine3D
                 (
                     cube[side],
@@ -710,92 +573,86 @@ void DrawRubikCube3D(const Cube& cube, const CameraProperties& camera, const Ani
                     line_offset,
                     trans_where.column, true
                 );
-                if (camera.cam.position.x > 0)
-                {
-                    if (trans_where.column < SIDE_LENGTH-1)
-                        DrawTriangle3D
-                        (
-                            {
-                                rot_top_left.x+(trans_where.column+1)*rot_delta_col.x,
-                                rot_top_left.y+(trans_where.column+1)*rot_delta_col.y,
-                                rot_top_left.z+(trans_where.column+1)*rot_delta_col.z
-                            },
-                            {
-                                rot_top_left.x+(trans_where.column+1)*rot_delta_col.x+SIDE_LENGTH*rot_delta_row.x,
-                                rot_top_left.y+(trans_where.column+1)*rot_delta_col.y+SIDE_LENGTH*rot_delta_row.y,
-                                rot_top_left.z+(trans_where.column+1)*rot_delta_col.z+SIDE_LENGTH*rot_delta_row.z
-                            },
-                            {
-                                -SIDE_LENGTH*delta_col.x/2+(trans_where.column+1)*delta_col.x,
-                                -SIDE_LENGTH*delta_col.y/2+(trans_where.column+1)*delta_col.y,
-                                -SIDE_LENGTH*delta_col.z/2+(trans_where.column+1)*delta_col.z
-                            },
-                            SIDE_COLOR
-                        );
-                    if (trans_where.column > 0)
-                        DrawTriangle3D
-                        (
-                            {
-                                top_left.x+(trans_where.column)*delta_col.x,
-                                top_left.y+(trans_where.column)*delta_col.y,
-                                top_left.z+(trans_where.column)*delta_col.z
-                            },
-                            {
-                                top_left.x+(trans_where.column)*delta_col.x+SIDE_LENGTH*delta_row.x,
-                                top_left.y+(trans_where.column)*delta_col.y+SIDE_LENGTH*delta_row.y,
-                                top_left.z+(trans_where.column)*delta_col.z+SIDE_LENGTH*delta_row.z
-                            },
-                            {
-                                -SIDE_LENGTH*delta_col.x/2+(trans_where.column)*delta_col.x,
-                                -SIDE_LENGTH*delta_col.y/2+(trans_where.column)*delta_col.y,
-                                -SIDE_LENGTH*delta_col.z/2+(trans_where.column)*delta_col.z
-                            },
-                            SIDE_COLOR
-                        );
-                }
-                else
-                {
-                    if (trans_where.column > 0)
-                        DrawTriangle3D
-                        (
-                            {
-                                rot_top_left.x+(trans_where.column)*rot_delta_col.x+SIDE_LENGTH*rot_delta_row.x,
-                                rot_top_left.y+(trans_where.column)*rot_delta_col.y+SIDE_LENGTH*rot_delta_row.y,
-                                rot_top_left.z+(trans_where.column)*rot_delta_col.z+SIDE_LENGTH*rot_delta_row.z
-                            },
-                            {
-                                rot_top_left.x+(trans_where.column)*rot_delta_col.x,
-                                rot_top_left.y+(trans_where.column)*rot_delta_col.y,
-                                rot_top_left.z+(trans_where.column)*rot_delta_col.z
-                            },
-                            {
-                                -SIDE_LENGTH*delta_col.x/2+(trans_where.column)*delta_col.x,
-                                -SIDE_LENGTH*delta_col.y/2+(trans_where.column)*delta_col.y,
-                                -SIDE_LENGTH*delta_col.z/2+(trans_where.column)*delta_col.z
-                            },
-                            SIDE_COLOR
-                        );
-                    if (trans_where.column < SIDE_LENGTH-1)
-                        DrawTriangle3D
-                        (
-                            {
-                                top_left.x+(trans_where.column+1)*delta_col.x+SIDE_LENGTH*delta_row.x,
-                                top_left.y+(trans_where.column+1)*delta_col.y+SIDE_LENGTH*delta_row.y,
-                                top_left.z+(trans_where.column+1)*delta_col.z+SIDE_LENGTH*delta_row.z
-                            },
-                            {
-                                top_left.x+(trans_where.column+1)*delta_col.x,
-                                top_left.y+(trans_where.column+1)*delta_col.y,
-                                top_left.z+(trans_where.column+1)*delta_col.z
-                            },
-                            {
-                                -SIDE_LENGTH*delta_col.x/2+(trans_where.column+1)*delta_col.x,
-                                -SIDE_LENGTH*delta_col.y/2+(trans_where.column+1)*delta_col.y,
-                                -SIDE_LENGTH*delta_col.z/2+(trans_where.column+1)*delta_col.z
-                            },
-                            SIDE_COLOR
-                        );
-                }
+                if (trans_where.column < SIDE_LENGTH-1)
+                    DrawTriangle3D
+                    (
+                        {
+                            rot_top_left.x+(trans_where.column+1)*rot_delta_col.x,
+                            rot_top_left.y+(trans_where.column+1)*rot_delta_col.y,
+                            rot_top_left.z+(trans_where.column+1)*rot_delta_col.z
+                        },
+                        {
+                            rot_top_left.x+(trans_where.column+1)*rot_delta_col.x+SIDE_LENGTH*rot_delta_row.x,
+                            rot_top_left.y+(trans_where.column+1)*rot_delta_col.y+SIDE_LENGTH*rot_delta_row.y,
+                            rot_top_left.z+(trans_where.column+1)*rot_delta_col.z+SIDE_LENGTH*rot_delta_row.z
+                        },
+                        {
+                            -SIDE_LENGTH*delta_col.x/2+(trans_where.column+1)*delta_col.x,
+                            -SIDE_LENGTH*delta_col.y/2+(trans_where.column+1)*delta_col.y,
+                            -SIDE_LENGTH*delta_col.z/2+(trans_where.column+1)*delta_col.z
+                        },
+                        SIDE_COLOR
+                    );
+                if (trans_where.column > 0)
+                    DrawTriangle3D
+                    (
+                        {
+                            top_left.x+(trans_where.column)*delta_col.x,
+                            top_left.y+(trans_where.column)*delta_col.y,
+                            top_left.z+(trans_where.column)*delta_col.z
+                        },
+                        {
+                            top_left.x+(trans_where.column)*delta_col.x+SIDE_LENGTH*delta_row.x,
+                            top_left.y+(trans_where.column)*delta_col.y+SIDE_LENGTH*delta_row.y,
+                            top_left.z+(trans_where.column)*delta_col.z+SIDE_LENGTH*delta_row.z
+                        },
+                        {
+                            -SIDE_LENGTH*delta_col.x/2+(trans_where.column)*delta_col.x,
+                            -SIDE_LENGTH*delta_col.y/2+(trans_where.column)*delta_col.y,
+                            -SIDE_LENGTH*delta_col.z/2+(trans_where.column)*delta_col.z
+                        },
+                        SIDE_COLOR
+                    );
+                if (trans_where.column > 0)
+                    DrawTriangle3D
+                    (
+                        {
+                            rot_top_left.x+(trans_where.column)*rot_delta_col.x+SIDE_LENGTH*rot_delta_row.x,
+                            rot_top_left.y+(trans_where.column)*rot_delta_col.y+SIDE_LENGTH*rot_delta_row.y,
+                            rot_top_left.z+(trans_where.column)*rot_delta_col.z+SIDE_LENGTH*rot_delta_row.z
+                        },
+                        {
+                            rot_top_left.x+(trans_where.column)*rot_delta_col.x,
+                            rot_top_left.y+(trans_where.column)*rot_delta_col.y,
+                            rot_top_left.z+(trans_where.column)*rot_delta_col.z
+                        },
+                        {
+                            -SIDE_LENGTH*delta_col.x/2+(trans_where.column)*delta_col.x,
+                            -SIDE_LENGTH*delta_col.y/2+(trans_where.column)*delta_col.y,
+                            -SIDE_LENGTH*delta_col.z/2+(trans_where.column)*delta_col.z
+                        },
+                        SIDE_COLOR
+                    );
+                if (trans_where.column < SIDE_LENGTH-1)
+                    DrawTriangle3D
+                    (
+                        {
+                            top_left.x+(trans_where.column+1)*delta_col.x+SIDE_LENGTH*delta_row.x,
+                            top_left.y+(trans_where.column+1)*delta_col.y+SIDE_LENGTH*delta_row.y,
+                            top_left.z+(trans_where.column+1)*delta_col.z+SIDE_LENGTH*delta_row.z
+                        },
+                        {
+                            top_left.x+(trans_where.column+1)*delta_col.x,
+                            top_left.y+(trans_where.column+1)*delta_col.y,
+                            top_left.z+(trans_where.column+1)*delta_col.z
+                        },
+                        {
+                            -SIDE_LENGTH*delta_col.x/2+(trans_where.column+1)*delta_col.x,
+                            -SIDE_LENGTH*delta_col.y/2+(trans_where.column+1)*delta_col.y,
+                            -SIDE_LENGTH*delta_col.z/2+(trans_where.column+1)*delta_col.z
+                        },
+                        SIDE_COLOR
+                    );
                 break;
             }
 
@@ -850,24 +707,6 @@ void DrawRubikCube3D(const Cube& cube, const CameraProperties& camera, const Ani
                         LINE_COLOR
                     );
                 }
-                rot_top_left =
-                {
-                    cosf(anim.angle*DEG2RAD)*top_left.x+sinf(anim.angle*DEG2RAD)*top_left.y,
-                    cosf(anim.angle*DEG2RAD)*top_left.y-sinf(anim.angle*DEG2RAD)*top_left.x,
-                    top_left.z
-                };
-                rot_delta_row =
-                {
-                    cosf(anim.angle*DEG2RAD)*delta_row.x+sinf(anim.angle*DEG2RAD)*delta_row.y,
-                    cosf(anim.angle*DEG2RAD)*delta_row.y-sinf(anim.angle*DEG2RAD)*delta_row.x,
-                    delta_row.z
-                };
-                rot_delta_col =
-                {
-                    cosf(anim.angle*DEG2RAD)*delta_col.x+sinf(anim.angle*DEG2RAD)*delta_col.y,
-                    cosf(anim.angle*DEG2RAD)*delta_col.y-sinf(anim.angle*DEG2RAD)*delta_col.x,
-                    delta_col.z
-                };
                 DrawRubikLine3D
                 (
                     cube[side],
@@ -880,92 +719,86 @@ void DrawRubikCube3D(const Cube& cube, const CameraProperties& camera, const Ani
                     line_offset,
                     trans_where.row, false
                 );
-                if (camera.cam.position.z > 0)
-                {
-                    if (trans_where.row > 0)
-                        DrawTriangle3D
-                        (
-                            {
-                                rot_top_left.x+(trans_where.row)*rot_delta_row.x,
-                                rot_top_left.y+(trans_where.row)*rot_delta_row.y,
-                                rot_top_left.z+(trans_where.row)*rot_delta_row.z
-                            },
-                            {
-                                rot_top_left.x+(trans_where.row)*rot_delta_row.x+SIDE_LENGTH*rot_delta_col.x,
-                                rot_top_left.y+(trans_where.row)*rot_delta_row.y+SIDE_LENGTH*rot_delta_col.y,
-                                rot_top_left.z+(trans_where.row)*rot_delta_row.z+SIDE_LENGTH*rot_delta_col.z
-                            },
-                            {
-                                -SIDE_LENGTH*delta_row.x/2+(trans_where.row)*delta_row.x,
-                                -SIDE_LENGTH*delta_row.y/2+(trans_where.row)*delta_row.y,
-                                -SIDE_LENGTH*delta_row.z/2+(trans_where.row)*delta_row.z
-                            },
-                            SIDE_COLOR
-                        );
-                    if (trans_where.row < SIDE_LENGTH-1)
-                        DrawTriangle3D
-                        (
-                            {
-                                top_left.x+(trans_where.row+1)*delta_row.x,
-                                top_left.y+(trans_where.row+1)*delta_row.y,
-                                top_left.z+(trans_where.row+1)*delta_row.z
-                            },
-                            {
-                                top_left.x+(trans_where.row+1)*delta_row.x+SIDE_LENGTH*delta_col.x,
-                                top_left.y+(trans_where.row+1)*delta_row.y+SIDE_LENGTH*delta_col.y,
-                                top_left.z+(trans_where.row+1)*delta_row.z+SIDE_LENGTH*delta_col.z
-                            },
-                            {
-                                -SIDE_LENGTH*delta_row.x/2+(trans_where.row+1)*delta_row.x,
-                                -SIDE_LENGTH*delta_row.y/2+(trans_where.row+1)*delta_row.y,
-                                -SIDE_LENGTH*delta_row.z/2+(trans_where.row+1)*delta_row.z
-                            },
-                            SIDE_COLOR
-                        );
-                }
-                else
-                {
-                    if (trans_where.row < SIDE_LENGTH-1)
-                        DrawTriangle3D
-                        (
-                            {
-                                rot_top_left.x+(trans_where.row+1)*rot_delta_row.x+SIDE_LENGTH*rot_delta_col.x,
-                                rot_top_left.y+(trans_where.row+1)*rot_delta_row.y+SIDE_LENGTH*rot_delta_col.y,
-                                rot_top_left.z+(trans_where.row+1)*rot_delta_row.z+SIDE_LENGTH*rot_delta_col.z
-                            },
-                            {
-                                rot_top_left.x+(trans_where.row+1)*rot_delta_row.x,
-                                rot_top_left.y+(trans_where.row+1)*rot_delta_row.y,
-                                rot_top_left.z+(trans_where.row+1)*rot_delta_row.z
-                            },
-                            {
-                                -SIDE_LENGTH*delta_row.x/2+(trans_where.row+1)*delta_row.x,
-                                -SIDE_LENGTH*delta_row.y/2+(trans_where.row+1)*delta_row.y,
-                                -SIDE_LENGTH*delta_row.z/2+(trans_where.row+1)*delta_row.z
-                            },
-                            SIDE_COLOR
-                        );
-                    if (trans_where.row > 0)
-                        DrawTriangle3D
-                        (
-                            {
-                                top_left.x+(trans_where.row)*delta_row.x+SIDE_LENGTH*delta_col.x,
-                                top_left.y+(trans_where.row)*delta_row.y+SIDE_LENGTH*delta_col.y,
-                                top_left.z+(trans_where.row)*delta_row.z+SIDE_LENGTH*delta_col.z
-                            },
-                            {
-                                top_left.x+(trans_where.row)*delta_row.x,
-                                top_left.y+(trans_where.row)*delta_row.y,
-                                top_left.z+(trans_where.row)*delta_row.z
-                            },
-                            {
-                                -SIDE_LENGTH*delta_row.x/2+(trans_where.row)*delta_row.x,
-                                -SIDE_LENGTH*delta_row.y/2+(trans_where.row)*delta_row.y,
-                                -SIDE_LENGTH*delta_row.z/2+(trans_where.row)*delta_row.z
-                            },
-                            SIDE_COLOR
-                        );
-                }
+                if (trans_where.row > 0)
+                    DrawTriangle3D
+                    (
+                        {
+                            rot_top_left.x+(trans_where.row)*rot_delta_row.x,
+                            rot_top_left.y+(trans_where.row)*rot_delta_row.y,
+                            rot_top_left.z+(trans_where.row)*rot_delta_row.z
+                        },
+                        {
+                            rot_top_left.x+(trans_where.row)*rot_delta_row.x+SIDE_LENGTH*rot_delta_col.x,
+                            rot_top_left.y+(trans_where.row)*rot_delta_row.y+SIDE_LENGTH*rot_delta_col.y,
+                            rot_top_left.z+(trans_where.row)*rot_delta_row.z+SIDE_LENGTH*rot_delta_col.z
+                        },
+                        {
+                            -SIDE_LENGTH*delta_row.x/2+(trans_where.row)*delta_row.x,
+                            -SIDE_LENGTH*delta_row.y/2+(trans_where.row)*delta_row.y,
+                            -SIDE_LENGTH*delta_row.z/2+(trans_where.row)*delta_row.z
+                        },
+                        SIDE_COLOR
+                    );
+                if (trans_where.row < SIDE_LENGTH-1)
+                    DrawTriangle3D
+                    (
+                        {
+                            top_left.x+(trans_where.row+1)*delta_row.x,
+                            top_left.y+(trans_where.row+1)*delta_row.y,
+                            top_left.z+(trans_where.row+1)*delta_row.z
+                        },
+                        {
+                            top_left.x+(trans_where.row+1)*delta_row.x+SIDE_LENGTH*delta_col.x,
+                            top_left.y+(trans_where.row+1)*delta_row.y+SIDE_LENGTH*delta_col.y,
+                            top_left.z+(trans_where.row+1)*delta_row.z+SIDE_LENGTH*delta_col.z
+                        },
+                        {
+                            -SIDE_LENGTH*delta_row.x/2+(trans_where.row+1)*delta_row.x,
+                            -SIDE_LENGTH*delta_row.y/2+(trans_where.row+1)*delta_row.y,
+                            -SIDE_LENGTH*delta_row.z/2+(trans_where.row+1)*delta_row.z
+                        },
+                        SIDE_COLOR
+                    );
+                if (trans_where.row < SIDE_LENGTH-1)
+                    DrawTriangle3D
+                    (
+                        {
+                            rot_top_left.x+(trans_where.row+1)*rot_delta_row.x+SIDE_LENGTH*rot_delta_col.x,
+                            rot_top_left.y+(trans_where.row+1)*rot_delta_row.y+SIDE_LENGTH*rot_delta_col.y,
+                            rot_top_left.z+(trans_where.row+1)*rot_delta_row.z+SIDE_LENGTH*rot_delta_col.z
+                        },
+                        {
+                            rot_top_left.x+(trans_where.row+1)*rot_delta_row.x,
+                            rot_top_left.y+(trans_where.row+1)*rot_delta_row.y,
+                            rot_top_left.z+(trans_where.row+1)*rot_delta_row.z
+                        },
+                        {
+                            -SIDE_LENGTH*delta_row.x/2+(trans_where.row+1)*delta_row.x,
+                            -SIDE_LENGTH*delta_row.y/2+(trans_where.row+1)*delta_row.y,
+                            -SIDE_LENGTH*delta_row.z/2+(trans_where.row+1)*delta_row.z
+                        },
+                        SIDE_COLOR
+                    );
+                if (trans_where.row > 0)
+                    DrawTriangle3D
+                    (
+                        {
+                            top_left.x+(trans_where.row)*delta_row.x+SIDE_LENGTH*delta_col.x,
+                            top_left.y+(trans_where.row)*delta_row.y+SIDE_LENGTH*delta_col.y,
+                            top_left.z+(trans_where.row)*delta_row.z+SIDE_LENGTH*delta_col.z
+                        },
+                        {
+                            top_left.x+(trans_where.row)*delta_row.x,
+                            top_left.y+(trans_where.row)*delta_row.y,
+                            top_left.z+(trans_where.row)*delta_row.z
+                        },
+                        {
+                            -SIDE_LENGTH*delta_row.x/2+(trans_where.row)*delta_row.x,
+                            -SIDE_LENGTH*delta_row.y/2+(trans_where.row)*delta_row.y,
+                            -SIDE_LENGTH*delta_row.z/2+(trans_where.row)*delta_row.z
+                        },
+                        SIDE_COLOR
+                    );
                 break;
             }
         }
@@ -979,95 +812,21 @@ void DrawRubikCube3D(const Cube& cube, const CameraProperties& camera, const Ani
         Vector3 delta_row = {0,-TILE_SIZE,0};
         Vector3 delta_col = {0,0,-TILE_SIZE};
         Vector3 line_offset = {THICK, 0, 0};
-        Vector3 rot_top_left, rot_delta_row, rot_delta_col;
+        Vector3 rot_top_left = Transform3D(anim,top_left);
+        Vector3 rot_delta_row = Transform3D(anim,delta_row);
+        Vector3 rot_delta_col = Transform3D(anim,delta_col);
         switch (anim.type)
         {
         case Animation::Pitch:
-            rot_top_left =
-            {
-                top_left.x,
-                cosf(anim.angle*DEG2RAD)*top_left.y+sinf(anim.angle*DEG2RAD)*top_left.z,
-                cosf(anim.angle*DEG2RAD)*top_left.z-sinf(anim.angle*DEG2RAD)*top_left.y
-            };
-            rot_delta_row =
-            {
-                delta_row.x,
-                cosf(anim.angle*DEG2RAD)*delta_row.y+sinf(anim.angle*DEG2RAD)*delta_row.z,
-                cosf(anim.angle*DEG2RAD)*delta_row.z-sinf(anim.angle*DEG2RAD)*delta_row.y
-            };
-            rot_delta_col =
-            {
-                delta_col.x,
-                cosf(anim.angle*DEG2RAD)*delta_col.y+sinf(anim.angle*DEG2RAD)*delta_col.z,
-                cosf(anim.angle*DEG2RAD)*delta_col.z-sinf(anim.angle*DEG2RAD)*delta_col.y
-            };
             if ((anim.where.column == SIDE_LENGTH-1 && anim.where.side != Back)
                 || (anim.where.column == 0 && anim.where.side == Back))
             {
-                for (unsigned i=0; i<SIDE_LENGTH; ++i)
-                {
-                    DrawRubikLine3D
-                    (
-                        cube[side],
-                        {
-                            rot_top_left.x+i*rot_delta_col.x,
-                            rot_top_left.y+i*rot_delta_col.y,
-                            rot_top_left.z+i*rot_delta_col.z
-                        },
-                        rot_delta_row, rot_delta_col,
-                        line_offset,
-                        i, true
-                    );
-                    if (i != 0)
-                        DrawLine3D
-                        (
-                            {
-                                rot_top_left.x+i*rot_delta_col.x+line_offset.x,
-                                rot_top_left.y+i*rot_delta_col.y+line_offset.y,
-                                rot_top_left.z+i*rot_delta_col.z+line_offset.z
-                            },
-                            {
-                                rot_top_left.x+i*rot_delta_col.x+SIDE_LENGTH*rot_delta_row.x+line_offset.x,
-                                rot_top_left.y+i*rot_delta_col.y+SIDE_LENGTH*rot_delta_row.y+line_offset.y,
-                                rot_top_left.z+i*rot_delta_col.z+SIDE_LENGTH*rot_delta_row.z+line_offset.z
-                            },
-                            LINE_COLOR
-                        );
-                }
+                DrawRubikSide3D(cube[side],rot_top_left,rot_delta_row,rot_delta_col,line_offset,true);
                 break;
             }
         default:
         case Animation::None:
-            for (unsigned i=0; i<SIDE_LENGTH; ++i)
-            {
-                DrawRubikLine3D
-                (
-                    cube[side],
-                    {
-                        top_left.x+i*delta_col.x,
-                        top_left.y+i*delta_col.y,
-                        top_left.z+i*delta_col.z
-                    },
-                    delta_row, delta_col,
-                    line_offset,
-                    i, true
-                );
-                if (i != 0)
-                    DrawLine3D
-                    (
-                        {
-                            top_left.x+i*delta_col.x+line_offset.x,
-                            top_left.y+i*delta_col.y+line_offset.y,
-                            top_left.z+i*delta_col.z+line_offset.z
-                        },
-                        {
-                            top_left.x+i*delta_col.x+SIDE_LENGTH*delta_row.x+line_offset.x,
-                            top_left.y+i*delta_col.y+SIDE_LENGTH*delta_row.y+line_offset.y,
-                            top_left.z+i*delta_col.z+SIDE_LENGTH*delta_row.z+line_offset.z
-                        },
-                        LINE_COLOR
-                    );
-            }
+            DrawRubikSide3D(cube[side],top_left,delta_row,delta_col,line_offset,true);
             break;
 
         case Animation::Yaw:
@@ -1102,24 +861,6 @@ void DrawRubikCube3D(const Cube& cube, const CameraProperties& camera, const Ani
                     LINE_COLOR
                 );
             }
-            rot_top_left =
-            {
-                cosf(anim.angle*DEG2RAD)*top_left.x+sinf(anim.angle*DEG2RAD)*top_left.z,
-                top_left.y,
-                cosf(anim.angle*DEG2RAD)*top_left.z-sinf(anim.angle*DEG2RAD)*top_left.x
-            };
-            rot_delta_row =
-            {
-                cosf(anim.angle*DEG2RAD)*delta_row.x+sinf(anim.angle*DEG2RAD)*delta_row.z,
-                delta_row.y,
-                cosf(anim.angle*DEG2RAD)*delta_row.z-sinf(anim.angle*DEG2RAD)*delta_row.x
-            };
-            rot_delta_col =
-            {
-                cosf(anim.angle*DEG2RAD)*delta_col.x+sinf(anim.angle*DEG2RAD)*delta_col.z,
-                delta_col.y,
-                cosf(anim.angle*DEG2RAD)*delta_col.z-sinf(anim.angle*DEG2RAD)*delta_col.x
-            };
             DrawRubikLine3D
             (
                 cube[side],
@@ -1132,92 +873,86 @@ void DrawRubikCube3D(const Cube& cube, const CameraProperties& camera, const Ani
                 line_offset,
                 anim.where.row, false
             );
-            if (camera.cam.position.y > 0)
-            {
-                if (anim.where.row > 0)
-                    DrawTriangle3D
-                    (
-                        {
-                            rot_top_left.x+(anim.where.row)*rot_delta_row.x,
-                            rot_top_left.y+(anim.where.row)*rot_delta_row.y,
-                            rot_top_left.z+(anim.where.row)*rot_delta_row.z
-                        },
-                        {
-                            rot_top_left.x+(anim.where.row)*rot_delta_row.x+SIDE_LENGTH*rot_delta_col.x,
-                            rot_top_left.y+(anim.where.row)*rot_delta_row.y+SIDE_LENGTH*rot_delta_col.y,
-                            rot_top_left.z+(anim.where.row)*rot_delta_row.z+SIDE_LENGTH*rot_delta_col.z
-                        },
-                        {
-                            -SIDE_LENGTH*delta_row.x/2+(anim.where.row)*delta_row.x,
-                            -SIDE_LENGTH*delta_row.y/2+(anim.where.row)*delta_row.y,
-                            -SIDE_LENGTH*delta_row.z/2+(anim.where.row)*delta_row.z
-                        },
-                        SIDE_COLOR
-                    );
-                if (anim.where.row < SIDE_LENGTH-1)
-                    DrawTriangle3D
-                    (
-                        {
-                            top_left.x+(anim.where.row+1)*delta_row.x,
-                            top_left.y+(anim.where.row+1)*delta_row.y,
-                            top_left.z+(anim.where.row+1)*delta_row.z
-                        },
-                        {
-                            top_left.x+(anim.where.row+1)*delta_row.x+SIDE_LENGTH*delta_col.x,
-                            top_left.y+(anim.where.row+1)*delta_row.y+SIDE_LENGTH*delta_col.y,
-                            top_left.z+(anim.where.row+1)*delta_row.z+SIDE_LENGTH*delta_col.z
-                        },
-                        {
-                            -SIDE_LENGTH*delta_row.x/2+(anim.where.row+1)*delta_row.x,
-                            -SIDE_LENGTH*delta_row.y/2+(anim.where.row+1)*delta_row.y,
-                            -SIDE_LENGTH*delta_row.z/2+(anim.where.row+1)*delta_row.z
-                        },
-                        SIDE_COLOR
-                    );
-            }
-            else
-            {
-                if (anim.where.row < SIDE_LENGTH-1)
-                    DrawTriangle3D
-                    (
-                        {
-                            rot_top_left.x+(anim.where.row+1)*rot_delta_row.x+SIDE_LENGTH*rot_delta_col.x,
-                            rot_top_left.y+(anim.where.row+1)*rot_delta_row.y+SIDE_LENGTH*rot_delta_col.y,
-                            rot_top_left.z+(anim.where.row+1)*rot_delta_row.z+SIDE_LENGTH*rot_delta_col.z
-                        },
-                        {
-                            rot_top_left.x+(anim.where.row+1)*rot_delta_row.x,
-                            rot_top_left.y+(anim.where.row+1)*rot_delta_row.y,
-                            rot_top_left.z+(anim.where.row+1)*rot_delta_row.z
-                        },
-                        {
-                            -SIDE_LENGTH*delta_row.x/2+(anim.where.row+1)*delta_row.x,
-                            -SIDE_LENGTH*delta_row.y/2+(anim.where.row+1)*delta_row.y,
-                            -SIDE_LENGTH*delta_row.z/2+(anim.where.row+1)*delta_row.z
-                        },
-                        SIDE_COLOR
-                    );
-                if (anim.where.row > 0)
-                    DrawTriangle3D
-                    (
-                        {
-                            top_left.x+(anim.where.row)*delta_row.x+SIDE_LENGTH*delta_col.x,
-                            top_left.y+(anim.where.row)*delta_row.y+SIDE_LENGTH*delta_col.y,
-                            top_left.z+(anim.where.row)*delta_row.z+SIDE_LENGTH*delta_col.z
-                        },
-                        {
-                            top_left.x+(anim.where.row)*delta_row.x,
-                            top_left.y+(anim.where.row)*delta_row.y,
-                            top_left.z+(anim.where.row)*delta_row.z
-                        },
-                        {
-                            -SIDE_LENGTH*delta_row.x/2+(anim.where.row)*delta_row.x,
-                            -SIDE_LENGTH*delta_row.y/2+(anim.where.row)*delta_row.y,
-                            -SIDE_LENGTH*delta_row.z/2+(anim.where.row)*delta_row.z
-                        },
-                        SIDE_COLOR
-                    );
-            }
+            if (anim.where.row > 0)
+                DrawTriangle3D
+                (
+                    {
+                        rot_top_left.x+(anim.where.row)*rot_delta_row.x,
+                        rot_top_left.y+(anim.where.row)*rot_delta_row.y,
+                        rot_top_left.z+(anim.where.row)*rot_delta_row.z
+                    },
+                    {
+                        rot_top_left.x+(anim.where.row)*rot_delta_row.x+SIDE_LENGTH*rot_delta_col.x,
+                        rot_top_left.y+(anim.where.row)*rot_delta_row.y+SIDE_LENGTH*rot_delta_col.y,
+                        rot_top_left.z+(anim.where.row)*rot_delta_row.z+SIDE_LENGTH*rot_delta_col.z
+                    },
+                    {
+                        -SIDE_LENGTH*delta_row.x/2+(anim.where.row)*delta_row.x,
+                        -SIDE_LENGTH*delta_row.y/2+(anim.where.row)*delta_row.y,
+                        -SIDE_LENGTH*delta_row.z/2+(anim.where.row)*delta_row.z
+                    },
+                    SIDE_COLOR
+                );
+            if (anim.where.row < SIDE_LENGTH-1)
+                DrawTriangle3D
+                (
+                    {
+                        top_left.x+(anim.where.row+1)*delta_row.x,
+                        top_left.y+(anim.where.row+1)*delta_row.y,
+                        top_left.z+(anim.where.row+1)*delta_row.z
+                    },
+                    {
+                        top_left.x+(anim.where.row+1)*delta_row.x+SIDE_LENGTH*delta_col.x,
+                        top_left.y+(anim.where.row+1)*delta_row.y+SIDE_LENGTH*delta_col.y,
+                        top_left.z+(anim.where.row+1)*delta_row.z+SIDE_LENGTH*delta_col.z
+                    },
+                    {
+                        -SIDE_LENGTH*delta_row.x/2+(anim.where.row+1)*delta_row.x,
+                        -SIDE_LENGTH*delta_row.y/2+(anim.where.row+1)*delta_row.y,
+                        -SIDE_LENGTH*delta_row.z/2+(anim.where.row+1)*delta_row.z
+                    },
+                    SIDE_COLOR
+                );
+            if (anim.where.row < SIDE_LENGTH-1)
+                DrawTriangle3D
+                (
+                    {
+                        rot_top_left.x+(anim.where.row+1)*rot_delta_row.x+SIDE_LENGTH*rot_delta_col.x,
+                        rot_top_left.y+(anim.where.row+1)*rot_delta_row.y+SIDE_LENGTH*rot_delta_col.y,
+                        rot_top_left.z+(anim.where.row+1)*rot_delta_row.z+SIDE_LENGTH*rot_delta_col.z
+                    },
+                    {
+                        rot_top_left.x+(anim.where.row+1)*rot_delta_row.x,
+                        rot_top_left.y+(anim.where.row+1)*rot_delta_row.y,
+                        rot_top_left.z+(anim.where.row+1)*rot_delta_row.z
+                    },
+                    {
+                        -SIDE_LENGTH*delta_row.x/2+(anim.where.row+1)*delta_row.x,
+                        -SIDE_LENGTH*delta_row.y/2+(anim.where.row+1)*delta_row.y,
+                        -SIDE_LENGTH*delta_row.z/2+(anim.where.row+1)*delta_row.z
+                    },
+                    SIDE_COLOR
+                );
+            if (anim.where.row > 0)
+                DrawTriangle3D
+                (
+                    {
+                        top_left.x+(anim.where.row)*delta_row.x+SIDE_LENGTH*delta_col.x,
+                        top_left.y+(anim.where.row)*delta_row.y+SIDE_LENGTH*delta_col.y,
+                        top_left.z+(anim.where.row)*delta_row.z+SIDE_LENGTH*delta_col.z
+                    },
+                    {
+                        top_left.x+(anim.where.row)*delta_row.x,
+                        top_left.y+(anim.where.row)*delta_row.y,
+                        top_left.z+(anim.where.row)*delta_row.z
+                    },
+                    {
+                        -SIDE_LENGTH*delta_row.x/2+(anim.where.row)*delta_row.x,
+                        -SIDE_LENGTH*delta_row.y/2+(anim.where.row)*delta_row.y,
+                        -SIDE_LENGTH*delta_row.z/2+(anim.where.row)*delta_row.z
+                    },
+                    SIDE_COLOR
+                );
             break;
 
         case Animation::Roll:
@@ -1271,24 +1006,6 @@ void DrawRubikCube3D(const Cube& cube, const CameraProperties& camera, const Ani
                             LINE_COLOR
                         );
                 }
-                rot_top_left =
-                {
-                    cosf(anim.angle*DEG2RAD)*top_left.x+sinf(anim.angle*DEG2RAD)*top_left.y,
-                    cosf(anim.angle*DEG2RAD)*top_left.y-sinf(anim.angle*DEG2RAD)*top_left.x,
-                    top_left.z
-                };
-                rot_delta_row =
-                {
-                    cosf(anim.angle*DEG2RAD)*delta_row.x+sinf(anim.angle*DEG2RAD)*delta_row.y,
-                    cosf(anim.angle*DEG2RAD)*delta_row.y-sinf(anim.angle*DEG2RAD)*delta_row.x,
-                    delta_row.z
-                };
-                rot_delta_col =
-                {
-                    cosf(anim.angle*DEG2RAD)*delta_col.x+sinf(anim.angle*DEG2RAD)*delta_col.y,
-                    cosf(anim.angle*DEG2RAD)*delta_col.y-sinf(anim.angle*DEG2RAD)*delta_col.x,
-                    delta_col.z
-                };
                 DrawRubikLine3D
                 (
                     cube[side],
@@ -1301,92 +1018,86 @@ void DrawRubikCube3D(const Cube& cube, const CameraProperties& camera, const Ani
                     line_offset,
                     trans_where.column, true
                 );
-                if (camera.cam.position.z > 0)
-                {
-                    if (trans_where.column > 0)
-                        DrawTriangle3D
-                        (
-                            {
-                                rot_top_left.x+(trans_where.column)*rot_delta_col.x+SIDE_LENGTH*rot_delta_row.x,
-                                rot_top_left.y+(trans_where.column)*rot_delta_col.y+SIDE_LENGTH*rot_delta_row.y,
-                                rot_top_left.z+(trans_where.column)*rot_delta_col.z+SIDE_LENGTH*rot_delta_row.z
-                            },
-                            {
-                                rot_top_left.x+(trans_where.column)*rot_delta_col.x,
-                                rot_top_left.y+(trans_where.column)*rot_delta_col.y,
-                                rot_top_left.z+(trans_where.column)*rot_delta_col.z
-                            },
-                            {
-                                -SIDE_LENGTH*delta_col.x/2+(trans_where.column)*delta_col.x,
-                                -SIDE_LENGTH*delta_col.y/2+(trans_where.column)*delta_col.y,
-                                -SIDE_LENGTH*delta_col.z/2+(trans_where.column)*delta_col.z
-                            },
-                            SIDE_COLOR
-                        );
-                    if (trans_where.column < SIDE_LENGTH-1)
-                        DrawTriangle3D
-                        (
-                            {
-                                top_left.x+(trans_where.column+1)*delta_col.x+SIDE_LENGTH*delta_row.x,
-                                top_left.y+(trans_where.column+1)*delta_col.y+SIDE_LENGTH*delta_row.y,
-                                top_left.z+(trans_where.column+1)*delta_col.z+SIDE_LENGTH*delta_row.z
-                            },
-                            {
-                                top_left.x+(trans_where.column+1)*delta_col.x,
-                                top_left.y+(trans_where.column+1)*delta_col.y,
-                                top_left.z+(trans_where.column+1)*delta_col.z
-                            },
-                            {
-                                -SIDE_LENGTH*delta_col.x/2+(trans_where.column+1)*delta_col.x,
-                                -SIDE_LENGTH*delta_col.y/2+(trans_where.column+1)*delta_col.y,
-                                -SIDE_LENGTH*delta_col.z/2+(trans_where.column+1)*delta_col.z
-                            },
-                            SIDE_COLOR
-                        );
-                }
-                else
-                {
-                    if (trans_where.column < SIDE_LENGTH-1)
-                        DrawTriangle3D
-                        (
-                            {
-                                rot_top_left.x+(trans_where.column+1)*rot_delta_col.x,
-                                rot_top_left.y+(trans_where.column+1)*rot_delta_col.y,
-                                rot_top_left.z+(trans_where.column+1)*rot_delta_col.z
-                            },
-                            {
-                                rot_top_left.x+(trans_where.column+1)*rot_delta_col.x+SIDE_LENGTH*rot_delta_row.x,
-                                rot_top_left.y+(trans_where.column+1)*rot_delta_col.y+SIDE_LENGTH*rot_delta_row.y,
-                                rot_top_left.z+(trans_where.column+1)*rot_delta_col.z+SIDE_LENGTH*rot_delta_row.z
-                            },
-                            {
-                                -SIDE_LENGTH*delta_col.x/2+(trans_where.column+1)*delta_col.x,
-                                -SIDE_LENGTH*delta_col.y/2+(trans_where.column+1)*delta_col.y,
-                                -SIDE_LENGTH*delta_col.z/2+(trans_where.column+1)*delta_col.z
-                            },
-                            SIDE_COLOR
-                        );
-                    if (trans_where.column > 0)
-                        DrawTriangle3D
-                        (
-                            {
-                                top_left.x+(trans_where.column)*delta_col.x,
-                                top_left.y+(trans_where.column)*delta_col.y,
-                                top_left.z+(trans_where.column)*delta_col.z
-                            },
-                            {
-                                top_left.x+(trans_where.column)*delta_col.x+SIDE_LENGTH*delta_row.x,
-                                top_left.y+(trans_where.column)*delta_col.y+SIDE_LENGTH*delta_row.y,
-                                top_left.z+(trans_where.column)*delta_col.z+SIDE_LENGTH*delta_row.z
-                            },
-                            {
-                                -SIDE_LENGTH*delta_col.x/2+(trans_where.column)*delta_col.x,
-                                -SIDE_LENGTH*delta_col.y/2+(trans_where.column)*delta_col.y,
-                                -SIDE_LENGTH*delta_col.z/2+(trans_where.column)*delta_col.z
-                            },
-                            SIDE_COLOR
-                        );
-                }
+                if (trans_where.column > 0)
+                    DrawTriangle3D
+                    (
+                        {
+                            rot_top_left.x+(trans_where.column)*rot_delta_col.x+SIDE_LENGTH*rot_delta_row.x,
+                            rot_top_left.y+(trans_where.column)*rot_delta_col.y+SIDE_LENGTH*rot_delta_row.y,
+                            rot_top_left.z+(trans_where.column)*rot_delta_col.z+SIDE_LENGTH*rot_delta_row.z
+                        },
+                        {
+                            rot_top_left.x+(trans_where.column)*rot_delta_col.x,
+                            rot_top_left.y+(trans_where.column)*rot_delta_col.y,
+                            rot_top_left.z+(trans_where.column)*rot_delta_col.z
+                        },
+                        {
+                            -SIDE_LENGTH*delta_col.x/2+(trans_where.column)*delta_col.x,
+                            -SIDE_LENGTH*delta_col.y/2+(trans_where.column)*delta_col.y,
+                            -SIDE_LENGTH*delta_col.z/2+(trans_where.column)*delta_col.z
+                        },
+                        SIDE_COLOR
+                    );
+                if (trans_where.column < SIDE_LENGTH-1)
+                    DrawTriangle3D
+                    (
+                        {
+                            top_left.x+(trans_where.column+1)*delta_col.x+SIDE_LENGTH*delta_row.x,
+                            top_left.y+(trans_where.column+1)*delta_col.y+SIDE_LENGTH*delta_row.y,
+                            top_left.z+(trans_where.column+1)*delta_col.z+SIDE_LENGTH*delta_row.z
+                        },
+                        {
+                            top_left.x+(trans_where.column+1)*delta_col.x,
+                            top_left.y+(trans_where.column+1)*delta_col.y,
+                            top_left.z+(trans_where.column+1)*delta_col.z
+                        },
+                        {
+                            -SIDE_LENGTH*delta_col.x/2+(trans_where.column+1)*delta_col.x,
+                            -SIDE_LENGTH*delta_col.y/2+(trans_where.column+1)*delta_col.y,
+                            -SIDE_LENGTH*delta_col.z/2+(trans_where.column+1)*delta_col.z
+                        },
+                        SIDE_COLOR
+                    );
+                if (trans_where.column < SIDE_LENGTH-1)
+                    DrawTriangle3D
+                    (
+                        {
+                            rot_top_left.x+(trans_where.column+1)*rot_delta_col.x,
+                            rot_top_left.y+(trans_where.column+1)*rot_delta_col.y,
+                            rot_top_left.z+(trans_where.column+1)*rot_delta_col.z
+                        },
+                        {
+                            rot_top_left.x+(trans_where.column+1)*rot_delta_col.x+SIDE_LENGTH*rot_delta_row.x,
+                            rot_top_left.y+(trans_where.column+1)*rot_delta_col.y+SIDE_LENGTH*rot_delta_row.y,
+                            rot_top_left.z+(trans_where.column+1)*rot_delta_col.z+SIDE_LENGTH*rot_delta_row.z
+                        },
+                        {
+                            -SIDE_LENGTH*delta_col.x/2+(trans_where.column+1)*delta_col.x,
+                            -SIDE_LENGTH*delta_col.y/2+(trans_where.column+1)*delta_col.y,
+                            -SIDE_LENGTH*delta_col.z/2+(trans_where.column+1)*delta_col.z
+                        },
+                        SIDE_COLOR
+                    );
+                if (trans_where.column > 0)
+                    DrawTriangle3D
+                    (
+                        {
+                            top_left.x+(trans_where.column)*delta_col.x,
+                            top_left.y+(trans_where.column)*delta_col.y,
+                            top_left.z+(trans_where.column)*delta_col.z
+                        },
+                        {
+                            top_left.x+(trans_where.column)*delta_col.x+SIDE_LENGTH*delta_row.x,
+                            top_left.y+(trans_where.column)*delta_col.y+SIDE_LENGTH*delta_row.y,
+                            top_left.z+(trans_where.column)*delta_col.z+SIDE_LENGTH*delta_row.z
+                        },
+                        {
+                            -SIDE_LENGTH*delta_col.x/2+(trans_where.column)*delta_col.x,
+                            -SIDE_LENGTH*delta_col.y/2+(trans_where.column)*delta_col.y,
+                            -SIDE_LENGTH*delta_col.z/2+(trans_where.column)*delta_col.z
+                        },
+                        SIDE_COLOR
+                    );
                 break;
             }
         }
@@ -1400,95 +1111,21 @@ void DrawRubikCube3D(const Cube& cube, const CameraProperties& camera, const Ani
         Vector3 delta_row = {0,-TILE_SIZE,0};
         Vector3 delta_col = {0,0,TILE_SIZE};
         Vector3 line_offset = {-THICK, 0, 0};
-        Vector3 rot_top_left, rot_delta_row, rot_delta_col;
+        Vector3 rot_top_left = Transform3D(anim,top_left);
+        Vector3 rot_delta_row = Transform3D(anim,delta_row);
+        Vector3 rot_delta_col = Transform3D(anim,delta_col);
         switch (anim.type)
         {
         case Animation::Pitch:
-            rot_top_left =
-            {
-                top_left.x,
-                cosf(anim.angle*DEG2RAD)*top_left.y+sinf(anim.angle*DEG2RAD)*top_left.z,
-                cosf(anim.angle*DEG2RAD)*top_left.z-sinf(anim.angle*DEG2RAD)*top_left.y
-            };
-            rot_delta_row =
-            {
-                delta_row.x,
-                cosf(anim.angle*DEG2RAD)*delta_row.y+sinf(anim.angle*DEG2RAD)*delta_row.z,
-                cosf(anim.angle*DEG2RAD)*delta_row.z-sinf(anim.angle*DEG2RAD)*delta_row.y
-            };
-            rot_delta_col =
-            {
-                delta_col.x,
-                cosf(anim.angle*DEG2RAD)*delta_col.y+sinf(anim.angle*DEG2RAD)*delta_col.z,
-                cosf(anim.angle*DEG2RAD)*delta_col.z-sinf(anim.angle*DEG2RAD)*delta_col.y
-            };
             if ((anim.where.column == 0 && anim.where.side != Back)
                 || (anim.where.column == SIDE_LENGTH-1 && anim.where.side == Back))
             {
-                for (unsigned i=0; i<SIDE_LENGTH; ++i)
-                {
-                    DrawRubikLine3D
-                    (
-                        cube[side],
-                        {
-                            rot_top_left.x+i*rot_delta_col.x,
-                            rot_top_left.y+i*rot_delta_col.y,
-                            rot_top_left.z+i*rot_delta_col.z
-                        },
-                        rot_delta_row, rot_delta_col,
-                        line_offset,
-                        i, true
-                    );
-                    if (i != 0)
-                        DrawLine3D
-                        (
-                            {
-                                rot_top_left.x+i*rot_delta_col.x+line_offset.x,
-                                rot_top_left.y+i*rot_delta_col.y+line_offset.y,
-                                rot_top_left.z+i*rot_delta_col.z+line_offset.z
-                            },
-                            {
-                                rot_top_left.x+i*rot_delta_col.x+SIDE_LENGTH*rot_delta_row.x+line_offset.x,
-                                rot_top_left.y+i*rot_delta_col.y+SIDE_LENGTH*rot_delta_row.y+line_offset.y,
-                                rot_top_left.z+i*rot_delta_col.z+SIDE_LENGTH*rot_delta_row.z+line_offset.z
-                            },
-                            LINE_COLOR
-                        );
-                }
+                DrawRubikSide3D(cube[side],rot_top_left,rot_delta_row,rot_delta_col,line_offset,true);
                 break;
             }
         default:
         case Animation::None:
-            for (unsigned i=0; i<SIDE_LENGTH; ++i)
-            {
-                DrawRubikLine3D
-                (
-                    cube[side],
-                    {
-                        top_left.x+i*delta_col.x,
-                        top_left.y+i*delta_col.y,
-                        top_left.z+i*delta_col.z
-                    },
-                    delta_row, delta_col,
-                    line_offset,
-                    i, true
-                );
-                if (i != 0)
-                    DrawLine3D
-                    (
-                        {
-                            top_left.x+i*delta_col.x+line_offset.x,
-                            top_left.y+i*delta_col.y+line_offset.y,
-                            top_left.z+i*delta_col.z+line_offset.z
-                        },
-                        {
-                            top_left.x+i*delta_col.x+SIDE_LENGTH*delta_row.x+line_offset.x,
-                            top_left.y+i*delta_col.y+SIDE_LENGTH*delta_row.y+line_offset.y,
-                            top_left.z+i*delta_col.z+SIDE_LENGTH*delta_row.z+line_offset.z
-                        },
-                        LINE_COLOR
-                    );
-            }
+            DrawRubikSide3D(cube[side],top_left,delta_row,delta_col,line_offset,true);
             break;
 
         case Animation::Yaw:
@@ -1523,24 +1160,6 @@ void DrawRubikCube3D(const Cube& cube, const CameraProperties& camera, const Ani
                     LINE_COLOR
                 );
             }
-            rot_top_left =
-            {
-                cosf(anim.angle*DEG2RAD)*top_left.x+sinf(anim.angle*DEG2RAD)*top_left.z,
-                top_left.y,
-                cosf(anim.angle*DEG2RAD)*top_left.z-sinf(anim.angle*DEG2RAD)*top_left.x
-            };
-            rot_delta_row =
-            {
-                cosf(anim.angle*DEG2RAD)*delta_row.x+sinf(anim.angle*DEG2RAD)*delta_row.z,
-                delta_row.y,
-                cosf(anim.angle*DEG2RAD)*delta_row.z-sinf(anim.angle*DEG2RAD)*delta_row.x
-            };
-            rot_delta_col =
-            {
-                cosf(anim.angle*DEG2RAD)*delta_col.x+sinf(anim.angle*DEG2RAD)*delta_col.z,
-                delta_col.y,
-                cosf(anim.angle*DEG2RAD)*delta_col.z-sinf(anim.angle*DEG2RAD)*delta_col.x
-            };
             DrawRubikLine3D
             (
                 cube[side],
@@ -1553,92 +1172,86 @@ void DrawRubikCube3D(const Cube& cube, const CameraProperties& camera, const Ani
                 line_offset,
                 anim.where.row, false
             );
-            if (camera.cam.position.y > 0)
-            {
-                if (anim.where.row > 0)
-                    DrawTriangle3D
-                    (
-                        {
-                            rot_top_left.x+(anim.where.row)*rot_delta_row.x,
-                            rot_top_left.y+(anim.where.row)*rot_delta_row.y,
-                            rot_top_left.z+(anim.where.row)*rot_delta_row.z
-                        },
-                        {
-                            rot_top_left.x+(anim.where.row)*rot_delta_row.x+SIDE_LENGTH*rot_delta_col.x,
-                            rot_top_left.y+(anim.where.row)*rot_delta_row.y+SIDE_LENGTH*rot_delta_col.y,
-                            rot_top_left.z+(anim.where.row)*rot_delta_row.z+SIDE_LENGTH*rot_delta_col.z
-                        },
-                        {
-                            -SIDE_LENGTH*delta_row.x/2+(anim.where.row)*delta_row.x,
-                            -SIDE_LENGTH*delta_row.y/2+(anim.where.row)*delta_row.y,
-                            -SIDE_LENGTH*delta_row.z/2+(anim.where.row)*delta_row.z
-                        },
-                        SIDE_COLOR
-                    );
-                if (anim.where.row < SIDE_LENGTH-1)
-                    DrawTriangle3D
-                    (
-                        {
-                            top_left.x+(anim.where.row+1)*delta_row.x,
-                            top_left.y+(anim.where.row+1)*delta_row.y,
-                            top_left.z+(anim.where.row+1)*delta_row.z
-                        },
-                        {
-                            top_left.x+(anim.where.row+1)*delta_row.x+SIDE_LENGTH*delta_col.x,
-                            top_left.y+(anim.where.row+1)*delta_row.y+SIDE_LENGTH*delta_col.y,
-                            top_left.z+(anim.where.row+1)*delta_row.z+SIDE_LENGTH*delta_col.z
-                        },
-                        {
-                            -SIDE_LENGTH*delta_row.x/2+(anim.where.row+1)*delta_row.x,
-                            -SIDE_LENGTH*delta_row.y/2+(anim.where.row+1)*delta_row.y,
-                            -SIDE_LENGTH*delta_row.z/2+(anim.where.row+1)*delta_row.z
-                        },
-                        SIDE_COLOR
-                    );
-            }
-            else
-            {
-                if (anim.where.row < SIDE_LENGTH-1)
-                    DrawTriangle3D
-                    (
-                        {
-                            rot_top_left.x+(anim.where.row+1)*rot_delta_row.x+SIDE_LENGTH*rot_delta_col.x,
-                            rot_top_left.y+(anim.where.row+1)*rot_delta_row.y+SIDE_LENGTH*rot_delta_col.y,
-                            rot_top_left.z+(anim.where.row+1)*rot_delta_row.z+SIDE_LENGTH*rot_delta_col.z
-                        },
-                        {
-                            rot_top_left.x+(anim.where.row+1)*rot_delta_row.x,
-                            rot_top_left.y+(anim.where.row+1)*rot_delta_row.y,
-                            rot_top_left.z+(anim.where.row+1)*rot_delta_row.z
-                        },
-                        {
-                            -SIDE_LENGTH*delta_row.x/2+(anim.where.row+1)*delta_row.x,
-                            -SIDE_LENGTH*delta_row.y/2+(anim.where.row+1)*delta_row.y,
-                            -SIDE_LENGTH*delta_row.z/2+(anim.where.row+1)*delta_row.z
-                        },
-                        SIDE_COLOR
-                    );
-                if (anim.where.row > 0)
-                    DrawTriangle3D
-                    (
-                        {
-                            top_left.x+(anim.where.row)*delta_row.x+SIDE_LENGTH*delta_col.x,
-                            top_left.y+(anim.where.row)*delta_row.y+SIDE_LENGTH*delta_col.y,
-                            top_left.z+(anim.where.row)*delta_row.z+SIDE_LENGTH*delta_col.z
-                        },
-                        {
-                            top_left.x+(anim.where.row)*delta_row.x,
-                            top_left.y+(anim.where.row)*delta_row.y,
-                            top_left.z+(anim.where.row)*delta_row.z
-                        },
-                        {
-                            -SIDE_LENGTH*delta_row.x/2+(anim.where.row)*delta_row.x,
-                            -SIDE_LENGTH*delta_row.y/2+(anim.where.row)*delta_row.y,
-                            -SIDE_LENGTH*delta_row.z/2+(anim.where.row)*delta_row.z
-                        },
-                        SIDE_COLOR
-                    );
-            }
+            if (anim.where.row > 0)
+                DrawTriangle3D
+                (
+                    {
+                        rot_top_left.x+(anim.where.row)*rot_delta_row.x,
+                        rot_top_left.y+(anim.where.row)*rot_delta_row.y,
+                        rot_top_left.z+(anim.where.row)*rot_delta_row.z
+                    },
+                    {
+                        rot_top_left.x+(anim.where.row)*rot_delta_row.x+SIDE_LENGTH*rot_delta_col.x,
+                        rot_top_left.y+(anim.where.row)*rot_delta_row.y+SIDE_LENGTH*rot_delta_col.y,
+                        rot_top_left.z+(anim.where.row)*rot_delta_row.z+SIDE_LENGTH*rot_delta_col.z
+                    },
+                    {
+                        -SIDE_LENGTH*delta_row.x/2+(anim.where.row)*delta_row.x,
+                        -SIDE_LENGTH*delta_row.y/2+(anim.where.row)*delta_row.y,
+                        -SIDE_LENGTH*delta_row.z/2+(anim.where.row)*delta_row.z
+                    },
+                    SIDE_COLOR
+                );
+            if (anim.where.row < SIDE_LENGTH-1)
+                DrawTriangle3D
+                (
+                    {
+                        top_left.x+(anim.where.row+1)*delta_row.x,
+                        top_left.y+(anim.where.row+1)*delta_row.y,
+                        top_left.z+(anim.where.row+1)*delta_row.z
+                    },
+                    {
+                        top_left.x+(anim.where.row+1)*delta_row.x+SIDE_LENGTH*delta_col.x,
+                        top_left.y+(anim.where.row+1)*delta_row.y+SIDE_LENGTH*delta_col.y,
+                        top_left.z+(anim.where.row+1)*delta_row.z+SIDE_LENGTH*delta_col.z
+                    },
+                    {
+                        -SIDE_LENGTH*delta_row.x/2+(anim.where.row+1)*delta_row.x,
+                        -SIDE_LENGTH*delta_row.y/2+(anim.where.row+1)*delta_row.y,
+                        -SIDE_LENGTH*delta_row.z/2+(anim.where.row+1)*delta_row.z
+                    },
+                    SIDE_COLOR
+                );
+            if (anim.where.row < SIDE_LENGTH-1)
+                DrawTriangle3D
+                (
+                    {
+                        rot_top_left.x+(anim.where.row+1)*rot_delta_row.x+SIDE_LENGTH*rot_delta_col.x,
+                        rot_top_left.y+(anim.where.row+1)*rot_delta_row.y+SIDE_LENGTH*rot_delta_col.y,
+                        rot_top_left.z+(anim.where.row+1)*rot_delta_row.z+SIDE_LENGTH*rot_delta_col.z
+                    },
+                    {
+                        rot_top_left.x+(anim.where.row+1)*rot_delta_row.x,
+                        rot_top_left.y+(anim.where.row+1)*rot_delta_row.y,
+                        rot_top_left.z+(anim.where.row+1)*rot_delta_row.z
+                    },
+                    {
+                        -SIDE_LENGTH*delta_row.x/2+(anim.where.row+1)*delta_row.x,
+                        -SIDE_LENGTH*delta_row.y/2+(anim.where.row+1)*delta_row.y,
+                        -SIDE_LENGTH*delta_row.z/2+(anim.where.row+1)*delta_row.z
+                    },
+                    SIDE_COLOR
+                );
+            if (anim.where.row > 0)
+                DrawTriangle3D
+                (
+                    {
+                        top_left.x+(anim.where.row)*delta_row.x+SIDE_LENGTH*delta_col.x,
+                        top_left.y+(anim.where.row)*delta_row.y+SIDE_LENGTH*delta_col.y,
+                        top_left.z+(anim.where.row)*delta_row.z+SIDE_LENGTH*delta_col.z
+                    },
+                    {
+                        top_left.x+(anim.where.row)*delta_row.x,
+                        top_left.y+(anim.where.row)*delta_row.y,
+                        top_left.z+(anim.where.row)*delta_row.z
+                    },
+                    {
+                        -SIDE_LENGTH*delta_row.x/2+(anim.where.row)*delta_row.x,
+                        -SIDE_LENGTH*delta_row.y/2+(anim.where.row)*delta_row.y,
+                        -SIDE_LENGTH*delta_row.z/2+(anim.where.row)*delta_row.z
+                    },
+                    SIDE_COLOR
+                );
             break;
 
         case Animation::Roll:
@@ -1692,24 +1305,6 @@ void DrawRubikCube3D(const Cube& cube, const CameraProperties& camera, const Ani
                             LINE_COLOR
                         );
                 }
-                rot_top_left =
-                {
-                    cosf(anim.angle*DEG2RAD)*top_left.x+sinf(anim.angle*DEG2RAD)*top_left.y,
-                    cosf(anim.angle*DEG2RAD)*top_left.y-sinf(anim.angle*DEG2RAD)*top_left.x,
-                    top_left.z
-                };
-                rot_delta_row =
-                {
-                    cosf(anim.angle*DEG2RAD)*delta_row.x+sinf(anim.angle*DEG2RAD)*delta_row.y,
-                    cosf(anim.angle*DEG2RAD)*delta_row.y-sinf(anim.angle*DEG2RAD)*delta_row.x,
-                    delta_row.z
-                };
-                rot_delta_col =
-                {
-                    cosf(anim.angle*DEG2RAD)*delta_col.x+sinf(anim.angle*DEG2RAD)*delta_col.y,
-                    cosf(anim.angle*DEG2RAD)*delta_col.y-sinf(anim.angle*DEG2RAD)*delta_col.x,
-                    delta_col.z
-                };
                 DrawRubikLine3D
                 (
                     cube[side],
@@ -1722,92 +1317,86 @@ void DrawRubikCube3D(const Cube& cube, const CameraProperties& camera, const Ani
                     line_offset,
                     trans_where.column, true
                 );
-                if (camera.cam.position.z > 0)
-                {
-                    if (trans_where.column < SIDE_LENGTH-1)
-                        DrawTriangle3D
-                        (
-                            {
-                                rot_top_left.x+(trans_where.column+1)*rot_delta_col.x,
-                                rot_top_left.y+(trans_where.column+1)*rot_delta_col.y,
-                                rot_top_left.z+(trans_where.column+1)*rot_delta_col.z
-                            },
-                            {
-                                rot_top_left.x+(trans_where.column+1)*rot_delta_col.x+SIDE_LENGTH*rot_delta_row.x,
-                                rot_top_left.y+(trans_where.column+1)*rot_delta_col.y+SIDE_LENGTH*rot_delta_row.y,
-                                rot_top_left.z+(trans_where.column+1)*rot_delta_col.z+SIDE_LENGTH*rot_delta_row.z
-                            },
-                            {
-                                -SIDE_LENGTH*delta_col.x/2+(trans_where.column+1)*delta_col.x,
-                                -SIDE_LENGTH*delta_col.y/2+(trans_where.column+1)*delta_col.y,
-                                -SIDE_LENGTH*delta_col.z/2+(trans_where.column+1)*delta_col.z
-                            },
-                            SIDE_COLOR
-                        );
-                    if (trans_where.column > 0)
-                        DrawTriangle3D
-                        (
-                            {
-                                top_left.x+(trans_where.column)*delta_col.x,
-                                top_left.y+(trans_where.column)*delta_col.y,
-                                top_left.z+(trans_where.column)*delta_col.z
-                            },
-                            {
-                                top_left.x+(trans_where.column)*delta_col.x+SIDE_LENGTH*delta_row.x,
-                                top_left.y+(trans_where.column)*delta_col.y+SIDE_LENGTH*delta_row.y,
-                                top_left.z+(trans_where.column)*delta_col.z+SIDE_LENGTH*delta_row.z
-                            },
-                            {
-                                -SIDE_LENGTH*delta_col.x/2+(trans_where.column)*delta_col.x,
-                                -SIDE_LENGTH*delta_col.y/2+(trans_where.column)*delta_col.y,
-                                -SIDE_LENGTH*delta_col.z/2+(trans_where.column)*delta_col.z
-                            },
-                            SIDE_COLOR
-                        );
-                }
-                else
-                {
-                    if (trans_where.column > 0)
-                        DrawTriangle3D
-                        (
-                            {
-                                rot_top_left.x+(trans_where.column)*rot_delta_col.x+SIDE_LENGTH*rot_delta_row.x,
-                                rot_top_left.y+(trans_where.column)*rot_delta_col.y+SIDE_LENGTH*rot_delta_row.y,
-                                rot_top_left.z+(trans_where.column)*rot_delta_col.z+SIDE_LENGTH*rot_delta_row.z
-                            },
-                            {
-                                rot_top_left.x+(trans_where.column)*rot_delta_col.x,
-                                rot_top_left.y+(trans_where.column)*rot_delta_col.y,
-                                rot_top_left.z+(trans_where.column)*rot_delta_col.z
-                            },
-                            {
-                                -SIDE_LENGTH*delta_col.x/2+(trans_where.column)*delta_col.x,
-                                -SIDE_LENGTH*delta_col.y/2+(trans_where.column)*delta_col.y,
-                                -SIDE_LENGTH*delta_col.z/2+(trans_where.column)*delta_col.z
-                            },
-                            SIDE_COLOR
-                        );
-                    if (trans_where.column < SIDE_LENGTH-1)
-                        DrawTriangle3D
-                        (
-                            {
-                                top_left.x+(trans_where.column+1)*delta_col.x+SIDE_LENGTH*delta_row.x,
-                                top_left.y+(trans_where.column+1)*delta_col.y+SIDE_LENGTH*delta_row.y,
-                                top_left.z+(trans_where.column+1)*delta_col.z+SIDE_LENGTH*delta_row.z
-                            },
-                            {
-                                top_left.x+(trans_where.column+1)*delta_col.x,
-                                top_left.y+(trans_where.column+1)*delta_col.y,
-                                top_left.z+(trans_where.column+1)*delta_col.z
-                            },
-                            {
-                                -SIDE_LENGTH*delta_col.x/2+(trans_where.column+1)*delta_col.x,
-                                -SIDE_LENGTH*delta_col.y/2+(trans_where.column+1)*delta_col.y,
-                                -SIDE_LENGTH*delta_col.z/2+(trans_where.column+1)*delta_col.z
-                            },
-                            SIDE_COLOR
-                        );
-                }
+                if (trans_where.column < SIDE_LENGTH-1)
+                    DrawTriangle3D
+                    (
+                        {
+                            rot_top_left.x+(trans_where.column+1)*rot_delta_col.x,
+                            rot_top_left.y+(trans_where.column+1)*rot_delta_col.y,
+                            rot_top_left.z+(trans_where.column+1)*rot_delta_col.z
+                        },
+                        {
+                            rot_top_left.x+(trans_where.column+1)*rot_delta_col.x+SIDE_LENGTH*rot_delta_row.x,
+                            rot_top_left.y+(trans_where.column+1)*rot_delta_col.y+SIDE_LENGTH*rot_delta_row.y,
+                            rot_top_left.z+(trans_where.column+1)*rot_delta_col.z+SIDE_LENGTH*rot_delta_row.z
+                        },
+                        {
+                            -SIDE_LENGTH*delta_col.x/2+(trans_where.column+1)*delta_col.x,
+                            -SIDE_LENGTH*delta_col.y/2+(trans_where.column+1)*delta_col.y,
+                            -SIDE_LENGTH*delta_col.z/2+(trans_where.column+1)*delta_col.z
+                        },
+                        SIDE_COLOR
+                    );
+                if (trans_where.column > 0)
+                    DrawTriangle3D
+                    (
+                        {
+                            top_left.x+(trans_where.column)*delta_col.x,
+                            top_left.y+(trans_where.column)*delta_col.y,
+                            top_left.z+(trans_where.column)*delta_col.z
+                        },
+                        {
+                            top_left.x+(trans_where.column)*delta_col.x+SIDE_LENGTH*delta_row.x,
+                            top_left.y+(trans_where.column)*delta_col.y+SIDE_LENGTH*delta_row.y,
+                            top_left.z+(trans_where.column)*delta_col.z+SIDE_LENGTH*delta_row.z
+                        },
+                        {
+                            -SIDE_LENGTH*delta_col.x/2+(trans_where.column)*delta_col.x,
+                            -SIDE_LENGTH*delta_col.y/2+(trans_where.column)*delta_col.y,
+                            -SIDE_LENGTH*delta_col.z/2+(trans_where.column)*delta_col.z
+                        },
+                        SIDE_COLOR
+                    );
+                if (trans_where.column > 0)
+                    DrawTriangle3D
+                    (
+                        {
+                            rot_top_left.x+(trans_where.column)*rot_delta_col.x+SIDE_LENGTH*rot_delta_row.x,
+                            rot_top_left.y+(trans_where.column)*rot_delta_col.y+SIDE_LENGTH*rot_delta_row.y,
+                            rot_top_left.z+(trans_where.column)*rot_delta_col.z+SIDE_LENGTH*rot_delta_row.z
+                        },
+                        {
+                            rot_top_left.x+(trans_where.column)*rot_delta_col.x,
+                            rot_top_left.y+(trans_where.column)*rot_delta_col.y,
+                            rot_top_left.z+(trans_where.column)*rot_delta_col.z
+                        },
+                        {
+                            -SIDE_LENGTH*delta_col.x/2+(trans_where.column)*delta_col.x,
+                            -SIDE_LENGTH*delta_col.y/2+(trans_where.column)*delta_col.y,
+                            -SIDE_LENGTH*delta_col.z/2+(trans_where.column)*delta_col.z
+                        },
+                        SIDE_COLOR
+                    );
+                if (trans_where.column < SIDE_LENGTH-1)
+                    DrawTriangle3D
+                    (
+                        {
+                            top_left.x+(trans_where.column+1)*delta_col.x+SIDE_LENGTH*delta_row.x,
+                            top_left.y+(trans_where.column+1)*delta_col.y+SIDE_LENGTH*delta_row.y,
+                            top_left.z+(trans_where.column+1)*delta_col.z+SIDE_LENGTH*delta_row.z
+                        },
+                        {
+                            top_left.x+(trans_where.column+1)*delta_col.x,
+                            top_left.y+(trans_where.column+1)*delta_col.y,
+                            top_left.z+(trans_where.column+1)*delta_col.z
+                        },
+                        {
+                            -SIDE_LENGTH*delta_col.x/2+(trans_where.column+1)*delta_col.x,
+                            -SIDE_LENGTH*delta_col.y/2+(trans_where.column+1)*delta_col.y,
+                            -SIDE_LENGTH*delta_col.z/2+(trans_where.column+1)*delta_col.z
+                        },
+                        SIDE_COLOR
+                    );
                 break;
             }
         }
@@ -1821,7 +1410,9 @@ void DrawRubikCube3D(const Cube& cube, const CameraProperties& camera, const Ani
         Vector3 delta_row = {0,-TILE_SIZE,0};
         Vector3 delta_col = {TILE_SIZE,0,0};
         Vector3 line_offset = {0, 0, THICK};
-        Vector3 rot_top_left, rot_delta_row, rot_delta_col;
+        Vector3 rot_top_left = Transform3D(anim,top_left);
+        Vector3 rot_delta_row = Transform3D(anim,delta_row);
+        Vector3 rot_delta_col = Transform3D(anim,delta_col);
         switch (anim.type)
         {
         case Animation::Roll:
@@ -1844,91 +1435,15 @@ void DrawRubikCube3D(const Cube& cube, const CameraProperties& camera, const Ani
                     trans_where.column = SIDE_LENGTH-trans_where.row-1;
                     break;
                 }
-                rot_top_left =
-                {
-                    cosf(anim.angle*DEG2RAD)*top_left.x+sinf(anim.angle*DEG2RAD)*top_left.y,
-                    cosf(anim.angle*DEG2RAD)*top_left.y-sinf(anim.angle*DEG2RAD)*top_left.x,
-                    top_left.z
-                };
-                rot_delta_row =
-                {
-                    cosf(anim.angle*DEG2RAD)*delta_row.x+sinf(anim.angle*DEG2RAD)*delta_row.y,
-                    cosf(anim.angle*DEG2RAD)*delta_row.y-sinf(anim.angle*DEG2RAD)*delta_row.x,
-                    delta_row.z
-                };
-                rot_delta_col =
-                {
-                    cosf(anim.angle*DEG2RAD)*delta_col.x+sinf(anim.angle*DEG2RAD)*delta_col.y,
-                    cosf(anim.angle*DEG2RAD)*delta_col.y-sinf(anim.angle*DEG2RAD)*delta_col.x,
-                    delta_col.z
-                };
                 if (trans_where.column == 0)
                 {
-                    for (unsigned i=0; i<SIDE_LENGTH; ++i)
-                    {
-                        DrawRubikLine3D
-                        (
-                            cube[side],
-                            {
-                                rot_top_left.x+i*rot_delta_col.x,
-                                rot_top_left.y+i*rot_delta_col.y,
-                                rot_top_left.z+i*rot_delta_col.z
-                            },
-                            rot_delta_row, rot_delta_col,
-                            line_offset,
-                            i, true
-                        );
-                        if (i != 0)
-                            DrawLine3D
-                            (
-                                {
-                                    rot_top_left.x+i*rot_delta_col.x+line_offset.x,
-                                    rot_top_left.y+i*rot_delta_col.y+line_offset.y,
-                                    rot_top_left.z+i*rot_delta_col.z+line_offset.z
-                                },
-                                {
-                                    rot_top_left.x+i*rot_delta_col.x+SIDE_LENGTH*rot_delta_row.x+line_offset.x,
-                                    rot_top_left.y+i*rot_delta_col.y+SIDE_LENGTH*rot_delta_row.y+line_offset.y,
-                                    rot_top_left.z+i*rot_delta_col.z+SIDE_LENGTH*rot_delta_row.z+line_offset.z
-                                },
-                                LINE_COLOR
-                            );
-                    }
+                    DrawRubikSide3D(cube[side],rot_top_left,rot_delta_row,rot_delta_col,line_offset,true);
                     break;
                 }
             }
         default:
         case Animation::None:
-            for (unsigned i=0; i<SIDE_LENGTH; ++i)
-            {
-                DrawRubikLine3D
-                (
-                    cube[side],
-                    {
-                        top_left.x+i*delta_col.x,
-                        top_left.y+i*delta_col.y,
-                        top_left.z+i*delta_col.z
-                    },
-                    delta_row, delta_col,
-                    line_offset,
-                    i, true
-                );
-                if (i != 0)
-                    DrawLine3D
-                    (
-                        {
-                            top_left.x+i*delta_col.x+line_offset.x,
-                            top_left.y+i*delta_col.y+line_offset.y,
-                            top_left.z+i*delta_col.z+line_offset.z
-                        },
-                        {
-                            top_left.x+i*delta_col.x+SIDE_LENGTH*delta_row.x+line_offset.x,
-                            top_left.y+i*delta_col.y+SIDE_LENGTH*delta_row.y+line_offset.y,
-                            top_left.z+i*delta_col.z+SIDE_LENGTH*delta_row.z+line_offset.z
-                        },
-                        LINE_COLOR
-                    );
-            }
+            DrawRubikSide3D(cube[side],top_left,delta_row,delta_col,line_offset,true);
             break;
 
         case Animation::Yaw:
@@ -1963,24 +1478,6 @@ void DrawRubikCube3D(const Cube& cube, const CameraProperties& camera, const Ani
                     LINE_COLOR
                 );
             }
-            rot_top_left =
-            {
-                cosf(anim.angle*DEG2RAD)*top_left.x+sinf(anim.angle*DEG2RAD)*top_left.z,
-                top_left.y,
-                cosf(anim.angle*DEG2RAD)*top_left.z-sinf(anim.angle*DEG2RAD)*top_left.x
-            };
-            rot_delta_row =
-            {
-                cosf(anim.angle*DEG2RAD)*delta_row.x+sinf(anim.angle*DEG2RAD)*delta_row.z,
-                delta_row.y,
-                cosf(anim.angle*DEG2RAD)*delta_row.z-sinf(anim.angle*DEG2RAD)*delta_row.x
-            };
-            rot_delta_col =
-            {
-                cosf(anim.angle*DEG2RAD)*delta_col.x+sinf(anim.angle*DEG2RAD)*delta_col.z,
-                delta_col.y,
-                cosf(anim.angle*DEG2RAD)*delta_col.z-sinf(anim.angle*DEG2RAD)*delta_col.x
-            };
             DrawRubikLine3D
             (
                 cube[side],
@@ -1993,92 +1490,86 @@ void DrawRubikCube3D(const Cube& cube, const CameraProperties& camera, const Ani
                 line_offset,
                 anim.where.row, false
             );
-            if (camera.cam.position.y > 0)
-            {
-                if (anim.where.row > 0)
-                    DrawTriangle3D
-                    (
-                        {
-                            rot_top_left.x+(anim.where.row)*rot_delta_row.x,
-                            rot_top_left.y+(anim.where.row)*rot_delta_row.y,
-                            rot_top_left.z+(anim.where.row)*rot_delta_row.z
-                        },
-                        {
-                            rot_top_left.x+(anim.where.row)*rot_delta_row.x+SIDE_LENGTH*rot_delta_col.x,
-                            rot_top_left.y+(anim.where.row)*rot_delta_row.y+SIDE_LENGTH*rot_delta_col.y,
-                            rot_top_left.z+(anim.where.row)*rot_delta_row.z+SIDE_LENGTH*rot_delta_col.z
-                        },
-                        {
-                            -SIDE_LENGTH*delta_row.x/2+(anim.where.row)*delta_row.x,
-                            -SIDE_LENGTH*delta_row.y/2+(anim.where.row)*delta_row.y,
-                            -SIDE_LENGTH*delta_row.z/2+(anim.where.row)*delta_row.z
-                        },
-                        SIDE_COLOR
-                    );
-                if (anim.where.row < SIDE_LENGTH-1)
-                    DrawTriangle3D
-                    (
-                        {
-                            top_left.x+(anim.where.row+1)*delta_row.x,
-                            top_left.y+(anim.where.row+1)*delta_row.y,
-                            top_left.z+(anim.where.row+1)*delta_row.z
-                        },
-                        {
-                            top_left.x+(anim.where.row+1)*delta_row.x+SIDE_LENGTH*delta_col.x,
-                            top_left.y+(anim.where.row+1)*delta_row.y+SIDE_LENGTH*delta_col.y,
-                            top_left.z+(anim.where.row+1)*delta_row.z+SIDE_LENGTH*delta_col.z
-                        },
-                        {
-                            -SIDE_LENGTH*delta_row.x/2+(anim.where.row+1)*delta_row.x,
-                            -SIDE_LENGTH*delta_row.y/2+(anim.where.row+1)*delta_row.y,
-                            -SIDE_LENGTH*delta_row.z/2+(anim.where.row+1)*delta_row.z
-                        },
-                        SIDE_COLOR
-                    );
-            }
-            else
-            {
-                if (anim.where.row < SIDE_LENGTH-1)
-                    DrawTriangle3D
-                    (
-                        {
-                            rot_top_left.x+(anim.where.row+1)*rot_delta_row.x+SIDE_LENGTH*rot_delta_col.x,
-                            rot_top_left.y+(anim.where.row+1)*rot_delta_row.y+SIDE_LENGTH*rot_delta_col.y,
-                            rot_top_left.z+(anim.where.row+1)*rot_delta_row.z+SIDE_LENGTH*rot_delta_col.z
-                        },
-                        {
-                            rot_top_left.x+(anim.where.row+1)*rot_delta_row.x,
-                            rot_top_left.y+(anim.where.row+1)*rot_delta_row.y,
-                            rot_top_left.z+(anim.where.row+1)*rot_delta_row.z
-                        },
-                        {
-                            -SIDE_LENGTH*delta_row.x/2+(anim.where.row+1)*delta_row.x,
-                            -SIDE_LENGTH*delta_row.y/2+(anim.where.row+1)*delta_row.y,
-                            -SIDE_LENGTH*delta_row.z/2+(anim.where.row+1)*delta_row.z
-                        },
-                        SIDE_COLOR
-                    );
-                if (anim.where.row > 0)
-                    DrawTriangle3D
-                    (
-                        {
-                            top_left.x+(anim.where.row)*delta_row.x+SIDE_LENGTH*delta_col.x,
-                            top_left.y+(anim.where.row)*delta_row.y+SIDE_LENGTH*delta_col.y,
-                            top_left.z+(anim.where.row)*delta_row.z+SIDE_LENGTH*delta_col.z
-                        },
-                        {
-                            top_left.x+(anim.where.row)*delta_row.x,
-                            top_left.y+(anim.where.row)*delta_row.y,
-                            top_left.z+(anim.where.row)*delta_row.z
-                        },
-                        {
-                            -SIDE_LENGTH*delta_row.x/2+(anim.where.row)*delta_row.x,
-                            -SIDE_LENGTH*delta_row.y/2+(anim.where.row)*delta_row.y,
-                            -SIDE_LENGTH*delta_row.z/2+(anim.where.row)*delta_row.z
-                        },
-                        SIDE_COLOR
-                    );
-            }
+            if (anim.where.row > 0)
+                DrawTriangle3D
+                (
+                    {
+                        rot_top_left.x+(anim.where.row)*rot_delta_row.x,
+                        rot_top_left.y+(anim.where.row)*rot_delta_row.y,
+                        rot_top_left.z+(anim.where.row)*rot_delta_row.z
+                    },
+                    {
+                        rot_top_left.x+(anim.where.row)*rot_delta_row.x+SIDE_LENGTH*rot_delta_col.x,
+                        rot_top_left.y+(anim.where.row)*rot_delta_row.y+SIDE_LENGTH*rot_delta_col.y,
+                        rot_top_left.z+(anim.where.row)*rot_delta_row.z+SIDE_LENGTH*rot_delta_col.z
+                    },
+                    {
+                        -SIDE_LENGTH*delta_row.x/2+(anim.where.row)*delta_row.x,
+                        -SIDE_LENGTH*delta_row.y/2+(anim.where.row)*delta_row.y,
+                        -SIDE_LENGTH*delta_row.z/2+(anim.where.row)*delta_row.z
+                    },
+                    SIDE_COLOR
+                );
+            if (anim.where.row < SIDE_LENGTH-1)
+                DrawTriangle3D
+                (
+                    {
+                        top_left.x+(anim.where.row+1)*delta_row.x,
+                        top_left.y+(anim.where.row+1)*delta_row.y,
+                        top_left.z+(anim.where.row+1)*delta_row.z
+                    },
+                    {
+                        top_left.x+(anim.where.row+1)*delta_row.x+SIDE_LENGTH*delta_col.x,
+                        top_left.y+(anim.where.row+1)*delta_row.y+SIDE_LENGTH*delta_col.y,
+                        top_left.z+(anim.where.row+1)*delta_row.z+SIDE_LENGTH*delta_col.z
+                    },
+                    {
+                        -SIDE_LENGTH*delta_row.x/2+(anim.where.row+1)*delta_row.x,
+                        -SIDE_LENGTH*delta_row.y/2+(anim.where.row+1)*delta_row.y,
+                        -SIDE_LENGTH*delta_row.z/2+(anim.where.row+1)*delta_row.z
+                    },
+                    SIDE_COLOR
+                );
+            if (anim.where.row < SIDE_LENGTH-1)
+                DrawTriangle3D
+                (
+                    {
+                        rot_top_left.x+(anim.where.row+1)*rot_delta_row.x+SIDE_LENGTH*rot_delta_col.x,
+                        rot_top_left.y+(anim.where.row+1)*rot_delta_row.y+SIDE_LENGTH*rot_delta_col.y,
+                        rot_top_left.z+(anim.where.row+1)*rot_delta_row.z+SIDE_LENGTH*rot_delta_col.z
+                    },
+                    {
+                        rot_top_left.x+(anim.where.row+1)*rot_delta_row.x,
+                        rot_top_left.y+(anim.where.row+1)*rot_delta_row.y,
+                        rot_top_left.z+(anim.where.row+1)*rot_delta_row.z
+                    },
+                    {
+                        -SIDE_LENGTH*delta_row.x/2+(anim.where.row+1)*delta_row.x,
+                        -SIDE_LENGTH*delta_row.y/2+(anim.where.row+1)*delta_row.y,
+                        -SIDE_LENGTH*delta_row.z/2+(anim.where.row+1)*delta_row.z
+                    },
+                    SIDE_COLOR
+                );
+            if (anim.where.row > 0)
+                DrawTriangle3D
+                (
+                    {
+                        top_left.x+(anim.where.row)*delta_row.x+SIDE_LENGTH*delta_col.x,
+                        top_left.y+(anim.where.row)*delta_row.y+SIDE_LENGTH*delta_col.y,
+                        top_left.z+(anim.where.row)*delta_row.z+SIDE_LENGTH*delta_col.z
+                    },
+                    {
+                        top_left.x+(anim.where.row)*delta_row.x,
+                        top_left.y+(anim.where.row)*delta_row.y,
+                        top_left.z+(anim.where.row)*delta_row.z
+                    },
+                    {
+                        -SIDE_LENGTH*delta_row.x/2+(anim.where.row)*delta_row.x,
+                        -SIDE_LENGTH*delta_row.y/2+(anim.where.row)*delta_row.y,
+                        -SIDE_LENGTH*delta_row.z/2+(anim.where.row)*delta_row.z
+                    },
+                    SIDE_COLOR
+                );
             break;
 
         case Animation::Pitch:
@@ -2117,24 +1608,6 @@ void DrawRubikCube3D(const Cube& cube, const CameraProperties& camera, const Ani
                             LINE_COLOR
                         );
                 }
-                rot_top_left =
-                {
-                    top_left.x,
-                    cosf(anim.angle*DEG2RAD)*top_left.y+sinf(anim.angle*DEG2RAD)*top_left.z,
-                    cosf(anim.angle*DEG2RAD)*top_left.z-sinf(anim.angle*DEG2RAD)*top_left.y
-                };
-                rot_delta_row =
-                {
-                    delta_row.x,
-                    cosf(anim.angle*DEG2RAD)*delta_row.y+sinf(anim.angle*DEG2RAD)*delta_row.z,
-                    cosf(anim.angle*DEG2RAD)*delta_row.z-sinf(anim.angle*DEG2RAD)*delta_row.y
-                };
-                rot_delta_col =
-                {
-                    delta_col.x,
-                    cosf(anim.angle*DEG2RAD)*delta_col.y+sinf(anim.angle*DEG2RAD)*delta_col.z,
-                    cosf(anim.angle*DEG2RAD)*delta_col.z-sinf(anim.angle*DEG2RAD)*delta_col.y
-                };
                 DrawRubikLine3D
                 (
                     cube[side],
@@ -2147,92 +1620,86 @@ void DrawRubikCube3D(const Cube& cube, const CameraProperties& camera, const Ani
                     line_offset,
                     trans_where.column, true
                 );
-                if (camera.cam.position.x > 0)
-                {
-                    if (trans_where.column < SIDE_LENGTH-1)
-                        DrawTriangle3D
-                        (
-                            {
-                                rot_top_left.x+(trans_where.column+1)*rot_delta_col.x,
-                                rot_top_left.y+(trans_where.column+1)*rot_delta_col.y,
-                                rot_top_left.z+(trans_where.column+1)*rot_delta_col.z
-                            },
-                            {
-                                rot_top_left.x+(trans_where.column+1)*rot_delta_col.x+SIDE_LENGTH*rot_delta_row.x,
-                                rot_top_left.y+(trans_where.column+1)*rot_delta_col.y+SIDE_LENGTH*rot_delta_row.y,
-                                rot_top_left.z+(trans_where.column+1)*rot_delta_col.z+SIDE_LENGTH*rot_delta_row.z
-                            },
-                            {
-                                -SIDE_LENGTH*delta_col.x/2+(trans_where.column+1)*delta_col.x,
-                                -SIDE_LENGTH*delta_col.y/2+(trans_where.column+1)*delta_col.y,
-                                -SIDE_LENGTH*delta_col.z/2+(trans_where.column+1)*delta_col.z
-                            },
-                            SIDE_COLOR
-                        );
-                    if (trans_where.column > 0)
-                        DrawTriangle3D
-                        (
-                            {
-                                top_left.x+(trans_where.column)*delta_col.x,
-                                top_left.y+(trans_where.column)*delta_col.y,
-                                top_left.z+(trans_where.column)*delta_col.z
-                            },
-                            {
-                                top_left.x+(trans_where.column)*delta_col.x+SIDE_LENGTH*delta_row.x,
-                                top_left.y+(trans_where.column)*delta_col.y+SIDE_LENGTH*delta_row.y,
-                                top_left.z+(trans_where.column)*delta_col.z+SIDE_LENGTH*delta_row.z
-                            },
-                            {
-                                -SIDE_LENGTH*delta_col.x/2+(trans_where.column)*delta_col.x,
-                                -SIDE_LENGTH*delta_col.y/2+(trans_where.column)*delta_col.y,
-                                -SIDE_LENGTH*delta_col.z/2+(trans_where.column)*delta_col.z
-                            },
-                            SIDE_COLOR
-                        );
-                }
-                else
-                {
-                    if (trans_where.column > 0)
-                        DrawTriangle3D
-                        (
-                            {
-                                rot_top_left.x+(trans_where.column)*rot_delta_col.x+SIDE_LENGTH*rot_delta_row.x,
-                                rot_top_left.y+(trans_where.column)*rot_delta_col.y+SIDE_LENGTH*rot_delta_row.y,
-                                rot_top_left.z+(trans_where.column)*rot_delta_col.z+SIDE_LENGTH*rot_delta_row.z
-                            },
-                            {
-                                rot_top_left.x+(trans_where.column)*rot_delta_col.x,
-                                rot_top_left.y+(trans_where.column)*rot_delta_col.y,
-                                rot_top_left.z+(trans_where.column)*rot_delta_col.z
-                            },
-                            {
-                                -SIDE_LENGTH*delta_col.x/2+(trans_where.column)*delta_col.x,
-                                -SIDE_LENGTH*delta_col.y/2+(trans_where.column)*delta_col.y,
-                                -SIDE_LENGTH*delta_col.z/2+(trans_where.column)*delta_col.z
-                            },
-                            SIDE_COLOR
-                        );
-                    if (trans_where.column < SIDE_LENGTH-1)
-                        DrawTriangle3D
-                        (
-                            {
-                                top_left.x+(trans_where.column+1)*delta_col.x+SIDE_LENGTH*delta_row.x,
-                                top_left.y+(trans_where.column+1)*delta_col.y+SIDE_LENGTH*delta_row.y,
-                                top_left.z+(trans_where.column+1)*delta_col.z+SIDE_LENGTH*delta_row.z
-                            },
-                            {
-                                top_left.x+(trans_where.column+1)*delta_col.x,
-                                top_left.y+(trans_where.column+1)*delta_col.y,
-                                top_left.z+(trans_where.column+1)*delta_col.z
-                            },
-                            {
-                                -SIDE_LENGTH*delta_col.x/2+(trans_where.column+1)*delta_col.x,
-                                -SIDE_LENGTH*delta_col.y/2+(trans_where.column+1)*delta_col.y,
-                                -SIDE_LENGTH*delta_col.z/2+(trans_where.column+1)*delta_col.z
-                            },
-                            SIDE_COLOR
-                        );
-                }
+                if (trans_where.column < SIDE_LENGTH-1)
+                    DrawTriangle3D
+                    (
+                        {
+                            rot_top_left.x+(trans_where.column+1)*rot_delta_col.x,
+                            rot_top_left.y+(trans_where.column+1)*rot_delta_col.y,
+                            rot_top_left.z+(trans_where.column+1)*rot_delta_col.z
+                        },
+                        {
+                            rot_top_left.x+(trans_where.column+1)*rot_delta_col.x+SIDE_LENGTH*rot_delta_row.x,
+                            rot_top_left.y+(trans_where.column+1)*rot_delta_col.y+SIDE_LENGTH*rot_delta_row.y,
+                            rot_top_left.z+(trans_where.column+1)*rot_delta_col.z+SIDE_LENGTH*rot_delta_row.z
+                        },
+                        {
+                            -SIDE_LENGTH*delta_col.x/2+(trans_where.column+1)*delta_col.x,
+                            -SIDE_LENGTH*delta_col.y/2+(trans_where.column+1)*delta_col.y,
+                            -SIDE_LENGTH*delta_col.z/2+(trans_where.column+1)*delta_col.z
+                        },
+                        SIDE_COLOR
+                    );
+                if (trans_where.column > 0)
+                    DrawTriangle3D
+                    (
+                        {
+                            top_left.x+(trans_where.column)*delta_col.x,
+                            top_left.y+(trans_where.column)*delta_col.y,
+                            top_left.z+(trans_where.column)*delta_col.z
+                        },
+                        {
+                            top_left.x+(trans_where.column)*delta_col.x+SIDE_LENGTH*delta_row.x,
+                            top_left.y+(trans_where.column)*delta_col.y+SIDE_LENGTH*delta_row.y,
+                            top_left.z+(trans_where.column)*delta_col.z+SIDE_LENGTH*delta_row.z
+                        },
+                        {
+                            -SIDE_LENGTH*delta_col.x/2+(trans_where.column)*delta_col.x,
+                            -SIDE_LENGTH*delta_col.y/2+(trans_where.column)*delta_col.y,
+                            -SIDE_LENGTH*delta_col.z/2+(trans_where.column)*delta_col.z
+                        },
+                        SIDE_COLOR
+                    );
+                if (trans_where.column > 0)
+                    DrawTriangle3D
+                    (
+                        {
+                            rot_top_left.x+(trans_where.column)*rot_delta_col.x+SIDE_LENGTH*rot_delta_row.x,
+                            rot_top_left.y+(trans_where.column)*rot_delta_col.y+SIDE_LENGTH*rot_delta_row.y,
+                            rot_top_left.z+(trans_where.column)*rot_delta_col.z+SIDE_LENGTH*rot_delta_row.z
+                        },
+                        {
+                            rot_top_left.x+(trans_where.column)*rot_delta_col.x,
+                            rot_top_left.y+(trans_where.column)*rot_delta_col.y,
+                            rot_top_left.z+(trans_where.column)*rot_delta_col.z
+                        },
+                        {
+                            -SIDE_LENGTH*delta_col.x/2+(trans_where.column)*delta_col.x,
+                            -SIDE_LENGTH*delta_col.y/2+(trans_where.column)*delta_col.y,
+                            -SIDE_LENGTH*delta_col.z/2+(trans_where.column)*delta_col.z
+                        },
+                        SIDE_COLOR
+                    );
+                if (trans_where.column < SIDE_LENGTH-1)
+                    DrawTriangle3D
+                    (
+                        {
+                            top_left.x+(trans_where.column+1)*delta_col.x+SIDE_LENGTH*delta_row.x,
+                            top_left.y+(trans_where.column+1)*delta_col.y+SIDE_LENGTH*delta_row.y,
+                            top_left.z+(trans_where.column+1)*delta_col.z+SIDE_LENGTH*delta_row.z
+                        },
+                        {
+                            top_left.x+(trans_where.column+1)*delta_col.x,
+                            top_left.y+(trans_where.column+1)*delta_col.y,
+                            top_left.z+(trans_where.column+1)*delta_col.z
+                        },
+                        {
+                            -SIDE_LENGTH*delta_col.x/2+(trans_where.column+1)*delta_col.x,
+                            -SIDE_LENGTH*delta_col.y/2+(trans_where.column+1)*delta_col.y,
+                            -SIDE_LENGTH*delta_col.z/2+(trans_where.column+1)*delta_col.z
+                        },
+                        SIDE_COLOR
+                    );
                 break;
             }
         }
@@ -2246,7 +1713,9 @@ void DrawRubikCube3D(const Cube& cube, const CameraProperties& camera, const Ani
         Vector3 delta_row = {0,-TILE_SIZE,0};
         Vector3 delta_col = {-TILE_SIZE,0,0};
         Vector3 line_offset = {0, 0, -THICK};
-        Vector3 rot_top_left, rot_delta_row, rot_delta_col;
+        Vector3 rot_top_left = Transform3D(anim,top_left);
+        Vector3 rot_delta_row = Transform3D(anim,delta_row);
+        Vector3 rot_delta_col = Transform3D(anim,delta_col);
         switch (anim.type)
         {
         case Animation::Roll:
@@ -2269,91 +1738,15 @@ void DrawRubikCube3D(const Cube& cube, const CameraProperties& camera, const Ani
                     trans_where.column = SIDE_LENGTH-trans_where.row-1;
                     break;
                 }
-                rot_top_left =
-                {
-                    cosf(anim.angle*DEG2RAD)*top_left.x+sinf(anim.angle*DEG2RAD)*top_left.y,
-                    cosf(anim.angle*DEG2RAD)*top_left.y-sinf(anim.angle*DEG2RAD)*top_left.x,
-                    top_left.z
-                };
-                rot_delta_row =
-                {
-                    cosf(anim.angle*DEG2RAD)*delta_row.x+sinf(anim.angle*DEG2RAD)*delta_row.y,
-                    cosf(anim.angle*DEG2RAD)*delta_row.y-sinf(anim.angle*DEG2RAD)*delta_row.x,
-                    delta_row.z
-                };
-                rot_delta_col =
-                {
-                    cosf(anim.angle*DEG2RAD)*delta_col.x+sinf(anim.angle*DEG2RAD)*delta_col.y,
-                    cosf(anim.angle*DEG2RAD)*delta_col.y-sinf(anim.angle*DEG2RAD)*delta_col.x,
-                    delta_col.z
-                };
                 if (trans_where.column == SIDE_LENGTH-1)
                 {
-                    for (unsigned i=0; i<SIDE_LENGTH; ++i)
-                    {
-                        DrawRubikLine3D
-                        (
-                            cube[side],
-                            {
-                                rot_top_left.x+i*rot_delta_col.x,
-                                rot_top_left.y+i*rot_delta_col.y,
-                                rot_top_left.z+i*rot_delta_col.z
-                            },
-                            rot_delta_row, rot_delta_col,
-                            line_offset,
-                            i, true
-                        );
-                        if (i != 0)
-                            DrawLine3D
-                            (
-                                {
-                                    rot_top_left.x+i*rot_delta_col.x+line_offset.x,
-                                    rot_top_left.y+i*rot_delta_col.y+line_offset.y,
-                                    rot_top_left.z+i*rot_delta_col.z+line_offset.z
-                                },
-                                {
-                                    rot_top_left.x+i*rot_delta_col.x+SIDE_LENGTH*rot_delta_row.x+line_offset.x,
-                                    rot_top_left.y+i*rot_delta_col.y+SIDE_LENGTH*rot_delta_row.y+line_offset.y,
-                                    rot_top_left.z+i*rot_delta_col.z+SIDE_LENGTH*rot_delta_row.z+line_offset.z
-                                },
-                                LINE_COLOR
-                            );
-                    }
+                    DrawRubikSide3D(cube[side],rot_top_left,rot_delta_row,rot_delta_col,line_offset,true);
                     break;
                 }
             }
         default:
         case Animation::None:
-            for (unsigned i=0; i<SIDE_LENGTH; ++i)
-            {
-                DrawRubikLine3D
-                (
-                    cube[side],
-                    {
-                        top_left.x+i*delta_col.x,
-                        top_left.y+i*delta_col.y,
-                        top_left.z+i*delta_col.z
-                    },
-                    delta_row, delta_col,
-                    line_offset,
-                    i, true
-                );
-                if (i != 0)
-                    DrawLine3D
-                    (
-                        {
-                            top_left.x+i*delta_col.x+line_offset.x,
-                            top_left.y+i*delta_col.y+line_offset.y,
-                            top_left.z+i*delta_col.z+line_offset.z
-                        },
-                        {
-                            top_left.x+i*delta_col.x+SIDE_LENGTH*delta_row.x+line_offset.x,
-                            top_left.y+i*delta_col.y+SIDE_LENGTH*delta_row.y+line_offset.y,
-                            top_left.z+i*delta_col.z+SIDE_LENGTH*delta_row.z+line_offset.z
-                        },
-                        LINE_COLOR
-                    );
-            }
+            DrawRubikSide3D(cube[side],top_left,delta_row,delta_col,line_offset,true);
             break;
 
         case Animation::Yaw:
@@ -2388,24 +1781,6 @@ void DrawRubikCube3D(const Cube& cube, const CameraProperties& camera, const Ani
                     LINE_COLOR
                 );
             }
-            rot_top_left =
-            {
-                cosf(anim.angle*DEG2RAD)*top_left.x+sinf(anim.angle*DEG2RAD)*top_left.z,
-                top_left.y,
-                cosf(anim.angle*DEG2RAD)*top_left.z-sinf(anim.angle*DEG2RAD)*top_left.x
-            };
-            rot_delta_row =
-            {
-                cosf(anim.angle*DEG2RAD)*delta_row.x+sinf(anim.angle*DEG2RAD)*delta_row.z,
-                delta_row.y,
-                cosf(anim.angle*DEG2RAD)*delta_row.z-sinf(anim.angle*DEG2RAD)*delta_row.x
-            };
-            rot_delta_col =
-            {
-                cosf(anim.angle*DEG2RAD)*delta_col.x+sinf(anim.angle*DEG2RAD)*delta_col.z,
-                delta_col.y,
-                cosf(anim.angle*DEG2RAD)*delta_col.z-sinf(anim.angle*DEG2RAD)*delta_col.x
-            };
             DrawRubikLine3D
             (
                 cube[side],
@@ -2418,92 +1793,86 @@ void DrawRubikCube3D(const Cube& cube, const CameraProperties& camera, const Ani
                 line_offset,
                 anim.where.row, false
             );
-            if (camera.cam.position.y > 0)
-            {
-                if (anim.where.row > 0)
-                    DrawTriangle3D
-                    (
-                        {
-                            rot_top_left.x+(anim.where.row)*rot_delta_row.x,
-                            rot_top_left.y+(anim.where.row)*rot_delta_row.y,
-                            rot_top_left.z+(anim.where.row)*rot_delta_row.z
-                        },
-                        {
-                            rot_top_left.x+(anim.where.row)*rot_delta_row.x+SIDE_LENGTH*rot_delta_col.x,
-                            rot_top_left.y+(anim.where.row)*rot_delta_row.y+SIDE_LENGTH*rot_delta_col.y,
-                            rot_top_left.z+(anim.where.row)*rot_delta_row.z+SIDE_LENGTH*rot_delta_col.z
-                        },
-                        {
-                            -SIDE_LENGTH*delta_row.x/2+(anim.where.row)*delta_row.x,
-                            -SIDE_LENGTH*delta_row.y/2+(anim.where.row)*delta_row.y,
-                            -SIDE_LENGTH*delta_row.z/2+(anim.where.row)*delta_row.z
-                        },
-                        SIDE_COLOR
-                    );
-                if (anim.where.row < SIDE_LENGTH-1)
-                    DrawTriangle3D
-                    (
-                        {
-                            top_left.x+(anim.where.row+1)*delta_row.x,
-                            top_left.y+(anim.where.row+1)*delta_row.y,
-                            top_left.z+(anim.where.row+1)*delta_row.z
-                        },
-                        {
-                            top_left.x+(anim.where.row+1)*delta_row.x+SIDE_LENGTH*delta_col.x,
-                            top_left.y+(anim.where.row+1)*delta_row.y+SIDE_LENGTH*delta_col.y,
-                            top_left.z+(anim.where.row+1)*delta_row.z+SIDE_LENGTH*delta_col.z
-                        },
-                        {
-                            -SIDE_LENGTH*delta_row.x/2+(anim.where.row+1)*delta_row.x,
-                            -SIDE_LENGTH*delta_row.y/2+(anim.where.row+1)*delta_row.y,
-                            -SIDE_LENGTH*delta_row.z/2+(anim.where.row+1)*delta_row.z
-                        },
-                        SIDE_COLOR
-                    );
-            }
-            else
-            {
-                if (anim.where.row < SIDE_LENGTH-1)
-                    DrawTriangle3D
-                    (
-                        {
-                            rot_top_left.x+(anim.where.row+1)*rot_delta_row.x+SIDE_LENGTH*rot_delta_col.x,
-                            rot_top_left.y+(anim.where.row+1)*rot_delta_row.y+SIDE_LENGTH*rot_delta_col.y,
-                            rot_top_left.z+(anim.where.row+1)*rot_delta_row.z+SIDE_LENGTH*rot_delta_col.z
-                        },
-                        {
-                            rot_top_left.x+(anim.where.row+1)*rot_delta_row.x,
-                            rot_top_left.y+(anim.where.row+1)*rot_delta_row.y,
-                            rot_top_left.z+(anim.where.row+1)*rot_delta_row.z
-                        },
-                        {
-                            -SIDE_LENGTH*delta_row.x/2+(anim.where.row+1)*delta_row.x,
-                            -SIDE_LENGTH*delta_row.y/2+(anim.where.row+1)*delta_row.y,
-                            -SIDE_LENGTH*delta_row.z/2+(anim.where.row+1)*delta_row.z
-                        },
-                        SIDE_COLOR
-                    );
-                if (anim.where.row > 0)
-                    DrawTriangle3D
-                    (
-                        {
-                            top_left.x+(anim.where.row)*delta_row.x+SIDE_LENGTH*delta_col.x,
-                            top_left.y+(anim.where.row)*delta_row.y+SIDE_LENGTH*delta_col.y,
-                            top_left.z+(anim.where.row)*delta_row.z+SIDE_LENGTH*delta_col.z
-                        },
-                        {
-                            top_left.x+(anim.where.row)*delta_row.x,
-                            top_left.y+(anim.where.row)*delta_row.y,
-                            top_left.z+(anim.where.row)*delta_row.z
-                        },
-                        {
-                            -SIDE_LENGTH*delta_row.x/2+(anim.where.row)*delta_row.x,
-                            -SIDE_LENGTH*delta_row.y/2+(anim.where.row)*delta_row.y,
-                            -SIDE_LENGTH*delta_row.z/2+(anim.where.row)*delta_row.z
-                        },
-                        SIDE_COLOR
-                    );
-            }
+            if (anim.where.row > 0)
+                DrawTriangle3D
+                (
+                    {
+                        rot_top_left.x+(anim.where.row)*rot_delta_row.x,
+                        rot_top_left.y+(anim.where.row)*rot_delta_row.y,
+                        rot_top_left.z+(anim.where.row)*rot_delta_row.z
+                    },
+                    {
+                        rot_top_left.x+(anim.where.row)*rot_delta_row.x+SIDE_LENGTH*rot_delta_col.x,
+                        rot_top_left.y+(anim.where.row)*rot_delta_row.y+SIDE_LENGTH*rot_delta_col.y,
+                        rot_top_left.z+(anim.where.row)*rot_delta_row.z+SIDE_LENGTH*rot_delta_col.z
+                    },
+                    {
+                        -SIDE_LENGTH*delta_row.x/2+(anim.where.row)*delta_row.x,
+                        -SIDE_LENGTH*delta_row.y/2+(anim.where.row)*delta_row.y,
+                        -SIDE_LENGTH*delta_row.z/2+(anim.where.row)*delta_row.z
+                    },
+                    SIDE_COLOR
+                );
+            if (anim.where.row < SIDE_LENGTH-1)
+                DrawTriangle3D
+                (
+                    {
+                        top_left.x+(anim.where.row+1)*delta_row.x,
+                        top_left.y+(anim.where.row+1)*delta_row.y,
+                        top_left.z+(anim.where.row+1)*delta_row.z
+                    },
+                    {
+                        top_left.x+(anim.where.row+1)*delta_row.x+SIDE_LENGTH*delta_col.x,
+                        top_left.y+(anim.where.row+1)*delta_row.y+SIDE_LENGTH*delta_col.y,
+                        top_left.z+(anim.where.row+1)*delta_row.z+SIDE_LENGTH*delta_col.z
+                    },
+                    {
+                        -SIDE_LENGTH*delta_row.x/2+(anim.where.row+1)*delta_row.x,
+                        -SIDE_LENGTH*delta_row.y/2+(anim.where.row+1)*delta_row.y,
+                        -SIDE_LENGTH*delta_row.z/2+(anim.where.row+1)*delta_row.z
+                    },
+                    SIDE_COLOR
+                );
+            if (anim.where.row < SIDE_LENGTH-1)
+                DrawTriangle3D
+                (
+                    {
+                        rot_top_left.x+(anim.where.row+1)*rot_delta_row.x+SIDE_LENGTH*rot_delta_col.x,
+                        rot_top_left.y+(anim.where.row+1)*rot_delta_row.y+SIDE_LENGTH*rot_delta_col.y,
+                        rot_top_left.z+(anim.where.row+1)*rot_delta_row.z+SIDE_LENGTH*rot_delta_col.z
+                    },
+                    {
+                        rot_top_left.x+(anim.where.row+1)*rot_delta_row.x,
+                        rot_top_left.y+(anim.where.row+1)*rot_delta_row.y,
+                        rot_top_left.z+(anim.where.row+1)*rot_delta_row.z
+                    },
+                    {
+                        -SIDE_LENGTH*delta_row.x/2+(anim.where.row+1)*delta_row.x,
+                        -SIDE_LENGTH*delta_row.y/2+(anim.where.row+1)*delta_row.y,
+                        -SIDE_LENGTH*delta_row.z/2+(anim.where.row+1)*delta_row.z
+                    },
+                    SIDE_COLOR
+                );
+            if (anim.where.row > 0)
+                DrawTriangle3D
+                (
+                    {
+                        top_left.x+(anim.where.row)*delta_row.x+SIDE_LENGTH*delta_col.x,
+                        top_left.y+(anim.where.row)*delta_row.y+SIDE_LENGTH*delta_col.y,
+                        top_left.z+(anim.where.row)*delta_row.z+SIDE_LENGTH*delta_col.z
+                    },
+                    {
+                        top_left.x+(anim.where.row)*delta_row.x,
+                        top_left.y+(anim.where.row)*delta_row.y,
+                        top_left.z+(anim.where.row)*delta_row.z
+                    },
+                    {
+                        -SIDE_LENGTH*delta_row.x/2+(anim.where.row)*delta_row.x,
+                        -SIDE_LENGTH*delta_row.y/2+(anim.where.row)*delta_row.y,
+                        -SIDE_LENGTH*delta_row.z/2+(anim.where.row)*delta_row.z
+                    },
+                    SIDE_COLOR
+                );
             break;
 
         case Animation::Pitch:
@@ -2542,24 +1911,6 @@ void DrawRubikCube3D(const Cube& cube, const CameraProperties& camera, const Ani
                             LINE_COLOR
                         );
                 }
-                rot_top_left =
-                {
-                    top_left.x,
-                    cosf(anim.angle*DEG2RAD)*top_left.y+sinf(anim.angle*DEG2RAD)*top_left.z,
-                    cosf(anim.angle*DEG2RAD)*top_left.z-sinf(anim.angle*DEG2RAD)*top_left.y
-                };
-                rot_delta_row =
-                {
-                    delta_row.x,
-                    cosf(anim.angle*DEG2RAD)*delta_row.y+sinf(anim.angle*DEG2RAD)*delta_row.z,
-                    cosf(anim.angle*DEG2RAD)*delta_row.z-sinf(anim.angle*DEG2RAD)*delta_row.y
-                };
-                rot_delta_col =
-                {
-                    delta_col.x,
-                    cosf(anim.angle*DEG2RAD)*delta_col.y+sinf(anim.angle*DEG2RAD)*delta_col.z,
-                    cosf(anim.angle*DEG2RAD)*delta_col.z-sinf(anim.angle*DEG2RAD)*delta_col.y
-                };
                 DrawRubikLine3D
                 (
                     cube[side],
@@ -2572,92 +1923,86 @@ void DrawRubikCube3D(const Cube& cube, const CameraProperties& camera, const Ani
                     line_offset,
                     trans_where.column, true
                 );
-                if (camera.cam.position.x > 0)
-                {
-                    if (trans_where.column > 0)
-                        DrawTriangle3D
-                        (
-                            {
-                                rot_top_left.x+(trans_where.column)*rot_delta_col.x+SIDE_LENGTH*rot_delta_row.x,
-                                rot_top_left.y+(trans_where.column)*rot_delta_col.y+SIDE_LENGTH*rot_delta_row.y,
-                                rot_top_left.z+(trans_where.column)*rot_delta_col.z+SIDE_LENGTH*rot_delta_row.z
-                            },
-                            {
-                                rot_top_left.x+(trans_where.column)*rot_delta_col.x,
-                                rot_top_left.y+(trans_where.column)*rot_delta_col.y,
-                                rot_top_left.z+(trans_where.column)*rot_delta_col.z
-                            },
-                            {
-                                -SIDE_LENGTH*delta_col.x/2+(trans_where.column)*delta_col.x,
-                                -SIDE_LENGTH*delta_col.y/2+(trans_where.column)*delta_col.y,
-                                -SIDE_LENGTH*delta_col.z/2+(trans_where.column)*delta_col.z
-                            },
-                            SIDE_COLOR
-                        );
-                    if (trans_where.column < SIDE_LENGTH-1)
-                        DrawTriangle3D
-                        (
-                            {
-                                top_left.x+(trans_where.column+1)*delta_col.x+SIDE_LENGTH*delta_row.x,
-                                top_left.y+(trans_where.column+1)*delta_col.y+SIDE_LENGTH*delta_row.y,
-                                top_left.z+(trans_where.column+1)*delta_col.z+SIDE_LENGTH*delta_row.z
-                            },
-                            {
-                                top_left.x+(trans_where.column+1)*delta_col.x,
-                                top_left.y+(trans_where.column+1)*delta_col.y,
-                                top_left.z+(trans_where.column+1)*delta_col.z
-                            },
-                            {
-                                -SIDE_LENGTH*delta_col.x/2+(trans_where.column+1)*delta_col.x,
-                                -SIDE_LENGTH*delta_col.y/2+(trans_where.column+1)*delta_col.y,
-                                -SIDE_LENGTH*delta_col.z/2+(trans_where.column+1)*delta_col.z
-                            },
-                            SIDE_COLOR
-                        );
-                }
-                else
-                {
-                    if (trans_where.column < SIDE_LENGTH-1)
-                        DrawTriangle3D
-                        (
-                            {
-                                rot_top_left.x+(trans_where.column+1)*rot_delta_col.x,
-                                rot_top_left.y+(trans_where.column+1)*rot_delta_col.y,
-                                rot_top_left.z+(trans_where.column+1)*rot_delta_col.z
-                            },
-                            {
-                                rot_top_left.x+(trans_where.column+1)*rot_delta_col.x+SIDE_LENGTH*rot_delta_row.x,
-                                rot_top_left.y+(trans_where.column+1)*rot_delta_col.y+SIDE_LENGTH*rot_delta_row.y,
-                                rot_top_left.z+(trans_where.column+1)*rot_delta_col.z+SIDE_LENGTH*rot_delta_row.z
-                            },
-                            {
-                                -SIDE_LENGTH*delta_col.x/2+(trans_where.column+1)*delta_col.x,
-                                -SIDE_LENGTH*delta_col.y/2+(trans_where.column+1)*delta_col.y,
-                                -SIDE_LENGTH*delta_col.z/2+(trans_where.column+1)*delta_col.z
-                            },
-                            SIDE_COLOR
-                        );
-                    if (trans_where.column > 0)
-                        DrawTriangle3D
-                        (
-                            {
-                                top_left.x+(trans_where.column)*delta_col.x,
-                                top_left.y+(trans_where.column)*delta_col.y,
-                                top_left.z+(trans_where.column)*delta_col.z
-                            },
-                            {
-                                top_left.x+(trans_where.column)*delta_col.x+SIDE_LENGTH*delta_row.x,
-                                top_left.y+(trans_where.column)*delta_col.y+SIDE_LENGTH*delta_row.y,
-                                top_left.z+(trans_where.column)*delta_col.z+SIDE_LENGTH*delta_row.z
-                            },
-                            {
-                                -SIDE_LENGTH*delta_col.x/2+(trans_where.column)*delta_col.x,
-                                -SIDE_LENGTH*delta_col.y/2+(trans_where.column)*delta_col.y,
-                                -SIDE_LENGTH*delta_col.z/2+(trans_where.column)*delta_col.z
-                            },
-                            SIDE_COLOR
-                        );
-                }
+                if (trans_where.column > 0)
+                    DrawTriangle3D
+                    (
+                        {
+                            rot_top_left.x+(trans_where.column)*rot_delta_col.x+SIDE_LENGTH*rot_delta_row.x,
+                            rot_top_left.y+(trans_where.column)*rot_delta_col.y+SIDE_LENGTH*rot_delta_row.y,
+                            rot_top_left.z+(trans_where.column)*rot_delta_col.z+SIDE_LENGTH*rot_delta_row.z
+                        },
+                        {
+                            rot_top_left.x+(trans_where.column)*rot_delta_col.x,
+                            rot_top_left.y+(trans_where.column)*rot_delta_col.y,
+                            rot_top_left.z+(trans_where.column)*rot_delta_col.z
+                        },
+                        {
+                            -SIDE_LENGTH*delta_col.x/2+(trans_where.column)*delta_col.x,
+                            -SIDE_LENGTH*delta_col.y/2+(trans_where.column)*delta_col.y,
+                            -SIDE_LENGTH*delta_col.z/2+(trans_where.column)*delta_col.z
+                        },
+                        SIDE_COLOR
+                    );
+                if (trans_where.column < SIDE_LENGTH-1)
+                    DrawTriangle3D
+                    (
+                        {
+                            top_left.x+(trans_where.column+1)*delta_col.x+SIDE_LENGTH*delta_row.x,
+                            top_left.y+(trans_where.column+1)*delta_col.y+SIDE_LENGTH*delta_row.y,
+                            top_left.z+(trans_where.column+1)*delta_col.z+SIDE_LENGTH*delta_row.z
+                        },
+                        {
+                            top_left.x+(trans_where.column+1)*delta_col.x,
+                            top_left.y+(trans_where.column+1)*delta_col.y,
+                            top_left.z+(trans_where.column+1)*delta_col.z
+                        },
+                        {
+                            -SIDE_LENGTH*delta_col.x/2+(trans_where.column+1)*delta_col.x,
+                            -SIDE_LENGTH*delta_col.y/2+(trans_where.column+1)*delta_col.y,
+                            -SIDE_LENGTH*delta_col.z/2+(trans_where.column+1)*delta_col.z
+                        },
+                        SIDE_COLOR
+                    );
+                if (trans_where.column < SIDE_LENGTH-1)
+                    DrawTriangle3D
+                    (
+                        {
+                            rot_top_left.x+(trans_where.column+1)*rot_delta_col.x,
+                            rot_top_left.y+(trans_where.column+1)*rot_delta_col.y,
+                            rot_top_left.z+(trans_where.column+1)*rot_delta_col.z
+                        },
+                        {
+                            rot_top_left.x+(trans_where.column+1)*rot_delta_col.x+SIDE_LENGTH*rot_delta_row.x,
+                            rot_top_left.y+(trans_where.column+1)*rot_delta_col.y+SIDE_LENGTH*rot_delta_row.y,
+                            rot_top_left.z+(trans_where.column+1)*rot_delta_col.z+SIDE_LENGTH*rot_delta_row.z
+                        },
+                        {
+                            -SIDE_LENGTH*delta_col.x/2+(trans_where.column+1)*delta_col.x,
+                            -SIDE_LENGTH*delta_col.y/2+(trans_where.column+1)*delta_col.y,
+                            -SIDE_LENGTH*delta_col.z/2+(trans_where.column+1)*delta_col.z
+                        },
+                        SIDE_COLOR
+                    );
+                if (trans_where.column > 0)
+                    DrawTriangle3D
+                    (
+                        {
+                            top_left.x+(trans_where.column)*delta_col.x,
+                            top_left.y+(trans_where.column)*delta_col.y,
+                            top_left.z+(trans_where.column)*delta_col.z
+                        },
+                        {
+                            top_left.x+(trans_where.column)*delta_col.x+SIDE_LENGTH*delta_row.x,
+                            top_left.y+(trans_where.column)*delta_col.y+SIDE_LENGTH*delta_row.y,
+                            top_left.z+(trans_where.column)*delta_col.z+SIDE_LENGTH*delta_row.z
+                        },
+                        {
+                            -SIDE_LENGTH*delta_col.x/2+(trans_where.column)*delta_col.x,
+                            -SIDE_LENGTH*delta_col.y/2+(trans_where.column)*delta_col.y,
+                            -SIDE_LENGTH*delta_col.z/2+(trans_where.column)*delta_col.z
+                        },
+                        SIDE_COLOR
+                    );
                 break;
             }
         }
