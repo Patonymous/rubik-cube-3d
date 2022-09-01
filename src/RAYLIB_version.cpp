@@ -2245,9 +2245,10 @@ bool ProgressAnimation(Cube& cube, Animation& anim, float angle)
 
 void RAYLIB_IO(Cube& cube, Tile& mouse)
 {
-    char buffer[32] = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
+    // char buffer[32] = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
     bool enable_keybinds = true;
     bool anim_manual = false;
+    bool display_hud = true;
     float last_speed = ANIM_AUTO_SPEED;
 
     SetTraceLogLevel(LOG_WARNING);
@@ -2316,6 +2317,7 @@ void RAYLIB_IO(Cube& cube, Tile& mouse)
         {
             switch (animation.type)
             {
+
             default:
             case Animation::None:
                 break;
@@ -2621,6 +2623,11 @@ void RAYLIB_IO(Cube& cube, Tile& mouse)
             {
                 MoveCamera(camera,{CAMERA_KEYBOARD_SPEED,0});
             }
+
+            if (IsKeyPressed(KEY_H))
+            {
+                display_hud = !display_hud;
+            }
         }
 
         BeginDrawing();
@@ -2633,12 +2640,18 @@ void RAYLIB_IO(Cube& cube, Tile& mouse)
 
             EndMode3D();
 
-            DrawText("Hold Space to shuffle!", (WIND_WIDTH-370)/2, WIND_HEIGHT-48, 32, LIGHTGRAY);
-            DrawText(itoa((int)(camera.deg.x),buffer,10),WIND_WIDTH-144,16,32,LIGHTGRAY);
-            DrawText(itoa((int)(camera.deg.y),buffer,10),WIND_WIDTH-64,16,32,LIGHTGRAY);
-            DrawText(itoa(mouse.side,buffer,10),16,16,32,LIGHTGRAY);
-            DrawText(itoa(mouse.row,buffer,10),48,16,32,LIGHTGRAY);
-            DrawText(itoa(mouse.column,buffer,10),80,16,32,LIGHTGRAY);
+            if (display_hud)
+            {
+                DrawText("Hold Space to shuffle!", (WIND_WIDTH-370)/2, WIND_HEIGHT-64, 32, LIGHTGRAY);
+                DrawText("Controls:\n- Roll Q/E\n- Pitch W/S\n- Yaw A/D\n- HUD H", 32, 32, 32, LIGHTGRAY);
+                DrawText("Move the camera\naround by holding\nright mouse button.", 32, WIND_HEIGHT-240, 32, LIGHTGRAY);
+                DrawText("Use mouse cursor", WIND_WIDTH-324, 32, 32, LIGHTGRAY);
+                DrawText("to select a tile", WIND_WIDTH-273, 80, 32, LIGHTGRAY);
+                DrawText("to rotate.", WIND_WIDTH-191, 128, 32, LIGHTGRAY);
+                DrawText("You can also grab", WIND_WIDTH-328, WIND_HEIGHT-240, 32, LIGHTGRAY);
+                DrawText("a tile by holding", WIND_WIDTH-287, WIND_HEIGHT-192, 32, LIGHTGRAY);
+                DrawText("left mouse button.", WIND_WIDTH-325, WIND_HEIGHT-144, 32, LIGHTGRAY);
+            }
 
         EndDrawing();
     }
