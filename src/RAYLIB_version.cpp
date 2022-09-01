@@ -196,7 +196,7 @@ Vector3 Transform3D(Animation anim, Vector3 vector)
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wimplicit-fallthrough="
 
-void DrawRubikCube3D(const Cube& cube, const CameraProperties& camera, const Animation& anim)
+void DrawRubikCube3D(const Cube& cube, const Animation& anim)
 {
     // Draw Top
     if (true)
@@ -2248,6 +2248,7 @@ void RAYLIB_IO(Cube& cube, Tile& mouse)
     char buffer[32] = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
     bool enable_keybinds = true;
     bool anim_manual = false;
+    float last_speed = ANIM_AUTO_SPEED;
 
     SetTraceLogLevel(LOG_WARNING);
 
@@ -2279,10 +2280,10 @@ void RAYLIB_IO(Cube& cube, Tile& mouse)
             {
                 if (animation.type != Animation::None)
                 {
-                    if (animation.angle > ANIM_AUTO_SPEED)
-                        animation.angle -= ANIM_AUTO_SPEED;
-                    else if (animation.angle < -ANIM_AUTO_SPEED)
-                        animation.angle += ANIM_AUTO_SPEED;
+                    if (animation.angle > last_speed)
+                        animation.angle -= last_speed;
+                    else if (animation.angle < -last_speed)
+                        animation.angle += last_speed;
                     else
                     {
                         animation.type = Animation::None;
@@ -2296,9 +2297,10 @@ void RAYLIB_IO(Cube& cube, Tile& mouse)
                 if (animation.type == Animation::None)
                 {
                     animation = moves.front();
+                    last_speed = fabsf(animation.angle);
                     animation.angle = 0;
                 }
-                if (ProgressAnimation(cube,animation,moves.front().angle*ANIM_AUTO_SPEED))
+                if (ProgressAnimation(cube,animation,moves.front().angle))
                     moves.pop();
             }
         }
@@ -2307,6 +2309,7 @@ void RAYLIB_IO(Cube& cube, Tile& mouse)
         {
             enable_keybinds = false;
             anim_manual = true;
+            last_speed = ANIM_AUTO_SPEED;
         }
 
         if (IsMouseButtonDown(MOUSE_BUTTON_LEFT) && anim_manual) //rotate part of cube
@@ -2343,225 +2346,260 @@ void RAYLIB_IO(Cube& cube, Tile& mouse)
 
         if (enable_keybinds && moves.size() < 4)
         {
-            if (IsKeyPressed(KEY_Q)) // rotate counterclockwise
+            if (IsKeyDown(KEY_SPACE)) // shuffle
             {
-                switch (mouse.side)
+                if (moves.empty())
                 {
-                case Top:
-                    moves.push(Animation(Animation::Yaw,Tile(Front,0,mouse.column),1));
-                    break;
+                    static unsigned last_move = 4;
+                    static unsigned last_pos = 4;
+                    static bool last_dir = true;
+                    unsigned move;
+                    unsigned position;
+                    bool direction;
+                    do {
+                        move = rand()%3;
+                        position = rand()%3;
+                        direction = rand()%2;
+                    } while (move == last_move && position == last_pos && direction != last_dir);
+                    last_move = move;
+                    last_pos = position;
+                    last_dir = direction;
+                    switch (move)
+                    {
+                    case 0: //Pitch
+                        moves.push(Animation(Animation::Pitch,Tile(Front,1,position),(direction?1:-1)*ANIM_SHUFFLE_SPEED));
+                        break;
+                    
+                    case 1: //Yaw
+                        moves.push(Animation(Animation::Yaw,Tile(Front,position,1),(direction?1:-1)*ANIM_SHUFFLE_SPEED));
+                        break;
 
-                case Bottom:
-                    moves.push(Animation(Animation::Yaw,Tile(Front,2,mouse.column),-1));
-                    break;
+                    case 2: //Roll
+                        moves.push(Animation(Animation::Roll,Tile(Top,position,1),(direction?1:-1)*ANIM_SHUFFLE_SPEED));
+                        break;
 
-                case Left:
-                    moves.push(Animation(Animation::Pitch,Tile(Front,mouse.row,0),1));
-                    break;
-
-                case Right:
-                    moves.push(Animation(Animation::Pitch,Tile(Front,mouse.row,2),-1));
-                    break;
-
-                case Front:
-                    moves.push(Animation(Animation::Roll,Tile(Top,2,mouse.column),-1));
-                    break;
-
-                case Back:
-                    moves.push(Animation(Animation::Roll,Tile(Top,0,SIDE_LENGTH-mouse.column-1),1));
-                    break;
-
-                default:
-                    break;
+                    default:
+                        break;
+                    }
                 }
             }
-
-            if (IsKeyPressed(KEY_W)) // pitch up
+            else // listen for moves
             {
-                switch (mouse.side)
+                if (IsKeyPressed(KEY_Q)) // rotate counterclockwise
                 {
-                case Top:
-                case Bottom:
-                    if (camera.deg.x > -45 && camera.deg.x < 45)
-                        moves.push(Animation(Animation::Pitch,mouse,1));
-                    else if (camera.deg.x > 45 && camera.deg.x < 135)
-                        moves.push(Animation(Animation::Roll,mouse,-1));
-                    else if (camera.deg.x > 135 || camera.deg.x < -135)
-                        moves.push(Animation(Animation::Pitch,mouse,-1));
-                    else if (camera.deg.x > -135 && camera.deg.x < -45)
-                        moves.push(Animation(Animation::Roll,mouse,1));
-                    break;
+                    switch (mouse.side)
+                    {
+                    case Top:
+                        moves.push(Animation(Animation::Yaw,Tile(Front,0,mouse.column),ANIM_AUTO_SPEED));
+                        break;
 
-                case Left:
-                    moves.push(Animation(Animation::Roll,mouse,1));
-                    break;
+                    case Bottom:
+                        moves.push(Animation(Animation::Yaw,Tile(Front,2,mouse.column),-ANIM_AUTO_SPEED));
+                        break;
 
-                case Right:
-                    moves.push(Animation(Animation::Roll,mouse,-1));
-                    break;
+                    case Left:
+                        moves.push(Animation(Animation::Pitch,Tile(Front,mouse.row,0),ANIM_AUTO_SPEED));
+                        break;
 
-                case Front:
-                    moves.push(Animation(Animation::Pitch,mouse,1));
-                    break;
+                    case Right:
+                        moves.push(Animation(Animation::Pitch,Tile(Front,mouse.row,2),-ANIM_AUTO_SPEED));
+                        break;
 
-                case Back:
-                    moves.push(Animation(Animation::Pitch,mouse,-1));
-                    break;
+                    case Front:
+                        moves.push(Animation(Animation::Roll,Tile(Top,2,mouse.column),-ANIM_AUTO_SPEED));
+                        break;
 
-                default:
-                    break;
+                    case Back:
+                        moves.push(Animation(Animation::Roll,Tile(Top,0,SIDE_LENGTH-mouse.column-1),ANIM_AUTO_SPEED));
+                        break;
+
+                    default:
+                        break;
+                    }
                 }
-            }
 
-            if (IsKeyPressed(KEY_E)) // rotate clockwise
-            {
-                switch (mouse.side)
+                if (IsKeyPressed(KEY_W)) // pitch up
                 {
-                case Top:
-                    moves.push(Animation(Animation::Yaw,Tile(Front,0,mouse.column),-1));
-                    break;
+                    switch (mouse.side)
+                    {
+                    case Top:
+                    case Bottom:
+                        if (camera.deg.x > -45 && camera.deg.x < 45)
+                            moves.push(Animation(Animation::Pitch,mouse,ANIM_AUTO_SPEED));
+                        else if (camera.deg.x > 45 && camera.deg.x < 135)
+                            moves.push(Animation(Animation::Roll,mouse,-ANIM_AUTO_SPEED));
+                        else if (camera.deg.x > 135 || camera.deg.x < -135)
+                            moves.push(Animation(Animation::Pitch,mouse,-ANIM_AUTO_SPEED));
+                        else if (camera.deg.x > -135 && camera.deg.x < -45)
+                            moves.push(Animation(Animation::Roll,mouse,ANIM_AUTO_SPEED));
+                        break;
 
-                case Bottom:
-                    moves.push(Animation(Animation::Yaw,Tile(Front,2,mouse.column),1));
-                    break;
+                    case Left:
+                        moves.push(Animation(Animation::Roll,mouse,ANIM_AUTO_SPEED));
+                        break;
 
-                case Left:
-                    moves.push(Animation(Animation::Pitch,Tile(Front,mouse.row,0),-1));
-                    break;
+                    case Right:
+                        moves.push(Animation(Animation::Roll,mouse,-ANIM_AUTO_SPEED));
+                        break;
 
-                case Right:
-                    moves.push(Animation(Animation::Pitch,Tile(Front,mouse.row,2),1));
-                    break;
+                    case Front:
+                        moves.push(Animation(Animation::Pitch,mouse,ANIM_AUTO_SPEED));
+                        break;
 
-                case Front:
-                    moves.push(Animation(Animation::Roll,Tile(Top,2,mouse.column),1));
-                    break;
+                    case Back:
+                        moves.push(Animation(Animation::Pitch,mouse,-ANIM_AUTO_SPEED));
+                        break;
 
-                case Back:
-                    moves.push(Animation(Animation::Roll,Tile(Top,0,SIDE_LENGTH-mouse.column-1),-1));
-                    break;
-
-                default:
-                    break;
+                    default:
+                        break;
+                    }
                 }
-            }
 
-            if (IsKeyPressed(KEY_A)) // yaw left
-            {
-                switch (mouse.side)
+                if (IsKeyPressed(KEY_E)) // rotate clockwise
                 {
-                case Top:
-                    if (camera.deg.x > -45 && camera.deg.x < 45)
-                        moves.push(Animation(Animation::Roll,mouse,-1));
-                    else if (camera.deg.x > 45 && camera.deg.x < 135)
-                        moves.push(Animation(Animation::Pitch,mouse,-1));
-                    else if (camera.deg.x > 135 || camera.deg.x < -135)
-                        moves.push(Animation(Animation::Roll,mouse,1));
-                    else if (camera.deg.x > -135 && camera.deg.x < -45)
-                        moves.push(Animation(Animation::Pitch,mouse,1));
-                    break;
+                    switch (mouse.side)
+                    {
+                    case Top:
+                        moves.push(Animation(Animation::Yaw,Tile(Front,0,mouse.column),-ANIM_AUTO_SPEED));
+                        break;
 
-                case Bottom:
-                    if (camera.deg.x > -45 && camera.deg.x < 45)
-                        moves.push(Animation(Animation::Roll,mouse,1));
-                    else if (camera.deg.x > 45 && camera.deg.x < 135)
-                        moves.push(Animation(Animation::Pitch,mouse,1));
-                    else if (camera.deg.x > 135 || camera.deg.x < -135)
-                        moves.push(Animation(Animation::Roll,mouse,-1));
-                    else if (camera.deg.x > -135 && camera.deg.x < -45)
-                        moves.push(Animation(Animation::Pitch,mouse,-1));
-                    break;
+                    case Bottom:
+                        moves.push(Animation(Animation::Yaw,Tile(Front,2,mouse.column),ANIM_AUTO_SPEED));
+                        break;
 
-                case Left:
-                case Right:
-                case Front:
-                case Back:
-                    moves.push(Animation(Animation::Yaw,mouse,-1));
-                    break;
+                    case Left:
+                        moves.push(Animation(Animation::Pitch,Tile(Front,mouse.row,0),-ANIM_AUTO_SPEED));
+                        break;
 
-                default:
-                    break;
+                    case Right:
+                        moves.push(Animation(Animation::Pitch,Tile(Front,mouse.row,2),ANIM_AUTO_SPEED));
+                        break;
+
+                    case Front:
+                        moves.push(Animation(Animation::Roll,Tile(Top,2,mouse.column),ANIM_AUTO_SPEED));
+                        break;
+
+                    case Back:
+                        moves.push(Animation(Animation::Roll,Tile(Top,0,SIDE_LENGTH-mouse.column-1),-ANIM_AUTO_SPEED));
+                        break;
+
+                    default:
+                        break;
+                    }
                 }
-            }
 
-            if (IsKeyPressed(KEY_S)) // pitch down
-            {
-                switch (mouse.side)
+                if (IsKeyPressed(KEY_A)) // yaw left
                 {
-                case Top:
-                case Bottom:
-                    if (camera.deg.x > -45 && camera.deg.x < 45)
-                        moves.push(Animation(Animation::Pitch,mouse,-1));
-                    else if (camera.deg.x > 45 && camera.deg.x < 135)
-                        moves.push(Animation(Animation::Roll,mouse,1));
-                    else if (camera.deg.x > 135 || camera.deg.x < -135)
-                        moves.push(Animation(Animation::Pitch,mouse,1));
-                    else if (camera.deg.x > -135 && camera.deg.x < -45)
-                        moves.push(Animation(Animation::Roll,mouse,-1));
-                    break;
+                    switch (mouse.side)
+                    {
+                    case Top:
+                        if (camera.deg.x > -45 && camera.deg.x < 45)
+                            moves.push(Animation(Animation::Roll,mouse,-ANIM_AUTO_SPEED));
+                        else if (camera.deg.x > 45 && camera.deg.x < 135)
+                            moves.push(Animation(Animation::Pitch,mouse,-ANIM_AUTO_SPEED));
+                        else if (camera.deg.x > 135 || camera.deg.x < -135)
+                            moves.push(Animation(Animation::Roll,mouse,ANIM_AUTO_SPEED));
+                        else if (camera.deg.x > -135 && camera.deg.x < -45)
+                            moves.push(Animation(Animation::Pitch,mouse,ANIM_AUTO_SPEED));
+                        break;
 
-                case Left:
-                    moves.push(Animation(Animation::Roll,mouse,-1));
-                    break;
+                    case Bottom:
+                        if (camera.deg.x > -45 && camera.deg.x < 45)
+                            moves.push(Animation(Animation::Roll,mouse,ANIM_AUTO_SPEED));
+                        else if (camera.deg.x > 45 && camera.deg.x < 135)
+                            moves.push(Animation(Animation::Pitch,mouse,ANIM_AUTO_SPEED));
+                        else if (camera.deg.x > 135 || camera.deg.x < -135)
+                            moves.push(Animation(Animation::Roll,mouse,-ANIM_AUTO_SPEED));
+                        else if (camera.deg.x > -135 && camera.deg.x < -45)
+                            moves.push(Animation(Animation::Pitch,mouse,-ANIM_AUTO_SPEED));
+                        break;
 
-                case Right:
-                    moves.push(Animation(Animation::Roll,mouse,1));
-                    break;
+                    case Left:
+                    case Right:
+                    case Front:
+                    case Back:
+                        moves.push(Animation(Animation::Yaw,mouse,-ANIM_AUTO_SPEED));
+                        break;
 
-                case Front:
-                    moves.push(Animation(Animation::Pitch,mouse,-1));
-                    break;
-
-                case Back:
-                    moves.push(Animation(Animation::Pitch,mouse,1));
-                    break;
-
-                default:
-                    break;
+                    default:
+                        break;
+                    }
                 }
-            }
 
-            if (IsKeyPressed(KEY_D)) // yaw right
-            {
-                switch (mouse.side)
+                if (IsKeyPressed(KEY_S)) // pitch down
                 {
-                case Top:
-                    if (camera.deg.x > -45 && camera.deg.x < 45)
-                        moves.push(Animation(Animation::Roll,mouse,1));
-                    else if (camera.deg.x > 45 && camera.deg.x < 135)
-                        moves.push(Animation(Animation::Pitch,mouse,1));
-                    else if (camera.deg.x > 135 || camera.deg.x < -135)
-                        moves.push(Animation(Animation::Roll,mouse,-1));
-                    else if (camera.deg.x > -135 && camera.deg.x < -45)
-                        moves.push(Animation(Animation::Pitch,mouse,-1));
-                    break;
+                    switch (mouse.side)
+                    {
+                    case Top:
+                    case Bottom:
+                        if (camera.deg.x > -45 && camera.deg.x < 45)
+                            moves.push(Animation(Animation::Pitch,mouse,-ANIM_AUTO_SPEED));
+                        else if (camera.deg.x > 45 && camera.deg.x < 135)
+                            moves.push(Animation(Animation::Roll,mouse,ANIM_AUTO_SPEED));
+                        else if (camera.deg.x > 135 || camera.deg.x < -135)
+                            moves.push(Animation(Animation::Pitch,mouse,ANIM_AUTO_SPEED));
+                        else if (camera.deg.x > -135 && camera.deg.x < -45)
+                            moves.push(Animation(Animation::Roll,mouse,-ANIM_AUTO_SPEED));
+                        break;
 
-                case Bottom:
-                    if (camera.deg.x > -45 && camera.deg.x < 45)
-                        moves.push(Animation(Animation::Roll,mouse,-1));
-                    else if (camera.deg.x > 45 && camera.deg.x < 135)
-                        moves.push(Animation(Animation::Pitch,mouse,-1));
-                    else if (camera.deg.x > 135 || camera.deg.x < -135)
-                        moves.push(Animation(Animation::Roll,mouse,1));
-                    else if (camera.deg.x > -135 && camera.deg.x < -45)
-                        moves.push(Animation(Animation::Pitch,mouse,1));
-                    break;
+                    case Left:
+                        moves.push(Animation(Animation::Roll,mouse,-ANIM_AUTO_SPEED));
+                        break;
 
-                case Left:
-                case Right:
-                case Front:
-                case Back:
-                    moves.push(Animation(Animation::Yaw,mouse,1));
-                    break;
+                    case Right:
+                        moves.push(Animation(Animation::Roll,mouse,ANIM_AUTO_SPEED));
+                        break;
 
-                default:
-                    break;
+                    case Front:
+                        moves.push(Animation(Animation::Pitch,mouse,-ANIM_AUTO_SPEED));
+                        break;
+
+                    case Back:
+                        moves.push(Animation(Animation::Pitch,mouse,ANIM_AUTO_SPEED));
+                        break;
+
+                    default:
+                        break;
+                    }
                 }
-            }
 
-            if (IsKeyPressed(KEY_SPACE)) // shuffle
-            {
-                Shuffle(cube);
+                if (IsKeyPressed(KEY_D)) // yaw right
+                {
+                    switch (mouse.side)
+                    {
+                    case Top:
+                        if (camera.deg.x > -45 && camera.deg.x < 45)
+                            moves.push(Animation(Animation::Roll,mouse,ANIM_AUTO_SPEED));
+                        else if (camera.deg.x > 45 && camera.deg.x < 135)
+                            moves.push(Animation(Animation::Pitch,mouse,ANIM_AUTO_SPEED));
+                        else if (camera.deg.x > 135 || camera.deg.x < -135)
+                            moves.push(Animation(Animation::Roll,mouse,-ANIM_AUTO_SPEED));
+                        else if (camera.deg.x > -135 && camera.deg.x < -45)
+                            moves.push(Animation(Animation::Pitch,mouse,-ANIM_AUTO_SPEED));
+                        break;
+
+                    case Bottom:
+                        if (camera.deg.x > -45 && camera.deg.x < 45)
+                            moves.push(Animation(Animation::Roll,mouse,-ANIM_AUTO_SPEED));
+                        else if (camera.deg.x > 45 && camera.deg.x < 135)
+                            moves.push(Animation(Animation::Pitch,mouse,-ANIM_AUTO_SPEED));
+                        else if (camera.deg.x > 135 || camera.deg.x < -135)
+                            moves.push(Animation(Animation::Roll,mouse,ANIM_AUTO_SPEED));
+                        else if (camera.deg.x > -135 && camera.deg.x < -45)
+                            moves.push(Animation(Animation::Pitch,mouse,ANIM_AUTO_SPEED));
+                        break;
+
+                    case Left:
+                    case Right:
+                    case Front:
+                    case Back:
+                        moves.push(Animation(Animation::Yaw,mouse,ANIM_AUTO_SPEED));
+                        break;
+
+                    default:
+                        break;
+                    }
+                }
             }
 
             if (IsKeyDown(KEY_I)) // camera up
@@ -2591,11 +2629,11 @@ void RAYLIB_IO(Cube& cube, Tile& mouse)
 
             BeginMode3D(camera.cam);
 
-                DrawRubikCube3D(cube,camera,animation);
+                DrawRubikCube3D(cube,animation);
 
             EndMode3D();
 
-            DrawText("Press Space to shuffle!", (WIND_WIDTH-420)/2, WIND_HEIGHT-48, 32, LIGHTGRAY);
+            DrawText("Hold Space to shuffle!", (WIND_WIDTH-370)/2, WIND_HEIGHT-48, 32, LIGHTGRAY);
             DrawText(itoa((int)(camera.deg.x),buffer,10),WIND_WIDTH-144,16,32,LIGHTGRAY);
             DrawText(itoa((int)(camera.deg.y),buffer,10),WIND_WIDTH-64,16,32,LIGHTGRAY);
             DrawText(itoa(mouse.side,buffer,10),16,16,32,LIGHTGRAY);
