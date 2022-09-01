@@ -55,6 +55,7 @@ endif
 
 # define raylib stuff
 ifneq ($(USE_SFML),1)
+RELEASE_CFLAGS	+= -mwindows
 RY_INCLUDE	:= "C:/External_libraries/C/raylib-source/src"
 ifeq ($(LMODE),static)
 RY_LIB	:= "C:/External_libraries/C/raylib-Mingw64-gcc11.2.0-llvm-msvcrt-static/raylib"
