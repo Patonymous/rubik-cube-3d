@@ -12,7 +12,7 @@
 #define TILE_SIZE (CUBE_SIZE/SIDE_LENGTH)
 #define THICK 0.00375f
 #define ANIM_MOUSE_SPEED 0.3f //degrees per pixel
-#define ANIM_AUTO_SPEED 5.f //degrees per frame
+#define ANIM_AUTO_SPEED 7.5f //degrees per frame
 #define ANIM_SHUFFLE_SPEED 15.f //degrees per frame
 #define LINE_COLOR BLACK
 #define SIDE_COLOR GRAY
@@ -2243,6 +2243,26 @@ bool ProgressAnimation(Cube& cube, Animation& anim, float angle)
     return false;
 }
 
+Vector2 Transform2D(float angle, Vector2 vector)
+{
+    if (angle < -45 && angle > -135)
+    {
+        std::swap(vector.x,vector.y);
+        vector.x = -vector.x;
+    }
+    else if (angle < -135 || angle > 135)
+    {
+        vector.x = -vector.x;
+        vector.y = -vector.y;
+    }
+    else if (angle < 135 && angle > 45)
+    {
+        std::swap(vector.x,vector.y);
+        vector.y = -vector.y;
+    }
+    return vector;
+}
+
 void RAYLIB_IO(Cube& cube, Tile& mouse)
 {
     // char buffer[32] = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
@@ -2311,16 +2331,144 @@ void RAYLIB_IO(Cube& cube, Tile& mouse)
             enable_keybinds = false;
             anim_manual = true;
             last_speed = ANIM_AUTO_SPEED;
+            animation.where = mouse;
         }
 
         if (IsMouseButtonDown(MOUSE_BUTTON_LEFT) && anim_manual) //rotate part of cube
         {
-            switch (animation.type)
+            auto move = GetMouseDelta();
+            if (move.x != 0 || move.y != 0)
             {
+                switch (animation.type)
+                {
+                case Animation::Roll:
+                    switch (animation.where.side)
+                    {
+                    case Top:
+                        move = Transform2D(camera.deg.x, move);
+                        ProgressAnimation(cube, animation, move.x*ANIM_MOUSE_SPEED);
+                        break;
 
-            default:
-            case Animation::None:
-                break;
+                    case Bottom:
+                        move = Transform2D(-camera.deg.x, move);
+                        ProgressAnimation(cube, animation, -move.x*ANIM_MOUSE_SPEED);
+                        break;
+
+                    case Left:
+                    case Right:
+                        ProgressAnimation(cube, animation, move.y*ANIM_MOUSE_SPEED*(animation.where.side == Left?-1:1));
+                        break;
+
+                    default:
+                        break;
+                    }
+                    break;
+
+                case Animation::Pitch:
+                    switch (animation.where.side)
+                    {
+                    case Top:
+                        move = Transform2D(camera.deg.x, move);
+                        ProgressAnimation(cube, animation, -move.y*ANIM_MOUSE_SPEED);
+                        break;
+
+                    case Bottom:
+                        move = Transform2D(-camera.deg.x, move);
+                        ProgressAnimation(cube, animation, -move.y*ANIM_MOUSE_SPEED);
+                        break;
+
+                    case Front:
+                    case Back:
+                        ProgressAnimation(cube, animation, move.y*ANIM_MOUSE_SPEED*(animation.where.side == Front?-1:1));
+                        break;
+
+                    default:
+                        break;
+                    }
+                    break;
+
+                case Animation::Yaw:
+                    switch (animation.where.side)
+                    {
+                    case Left:
+                    case Front:
+                    case Right:
+                    case Back:
+                        ProgressAnimation(cube, animation, move.x*ANIM_MOUSE_SPEED);
+                        break;
+
+                    default:
+                        break;
+                    }
+                    break;
+
+                case Animation::None:
+                    switch (animation.where.side)
+                    {
+                    case Top:
+                        move = Transform2D(camera.deg.x, move);
+                        if (fabsf(move.x) > fabsf(move.y))
+                        {
+                            animation.type = Animation::Roll;
+                            ProgressAnimation(cube, animation, move.x*ANIM_MOUSE_SPEED);
+                        }
+                        else
+                        {
+                            animation.type = Animation::Pitch;
+                            ProgressAnimation(cube, animation, -move.y*ANIM_MOUSE_SPEED);
+                        }
+                        break;
+
+                    case Bottom:
+                        move = Transform2D(-camera.deg.x, move);
+                        if (fabsf(move.x) > fabsf(move.y))
+                        {
+                            animation.type = Animation::Roll;
+                            ProgressAnimation(cube, animation, -move.x*ANIM_MOUSE_SPEED);
+                        }
+                        else
+                        {
+                            animation.type = Animation::Pitch;
+                            ProgressAnimation(cube, animation, -move.y*ANIM_MOUSE_SPEED);
+                        }
+                        break;
+
+                    case Front:
+                    case Back:
+                        if (fabsf(move.x) > fabsf(move.y))
+                        {
+                            animation.type = Animation::Yaw;
+                            ProgressAnimation(cube, animation, move.x*ANIM_MOUSE_SPEED);
+                        }
+                        else
+                        {
+                            animation.type = Animation::Pitch;
+                            ProgressAnimation(cube, animation, move.y*ANIM_MOUSE_SPEED*(animation.where.side == Front?-1:1));
+                        }
+                        break;
+
+                    case Left:
+                    case Right:
+                        if (fabsf(move.x) > fabsf(move.y))
+                        {
+                            animation.type = Animation::Yaw;
+                            ProgressAnimation(cube, animation, move.x*ANIM_MOUSE_SPEED);
+                        }
+                        else
+                        {
+                            animation.type = Animation::Roll;
+                            ProgressAnimation(cube, animation, move.y*ANIM_MOUSE_SPEED*(animation.where.side == Left?-1:1));
+                        }
+                        break;
+
+                    default:
+                        break;
+                    }
+                    break;
+
+                default:
+                    break;
+                }
             }
         }
 
@@ -2335,7 +2483,7 @@ void RAYLIB_IO(Cube& cube, Tile& mouse)
             enable_keybinds = false;
         }
 
-        if (IsMouseButtonDown(MOUSE_BUTTON_RIGHT)) //move camera
+        if (IsMouseButtonDown(MOUSE_BUTTON_RIGHT) && !anim_manual) //move camera
         {
             auto move = GetMouseDelta();
             MoveCamera(camera,{-move.x*CAMERA_MOUSE_SPEED,move.y*CAMERA_MOUSE_SPEED});
